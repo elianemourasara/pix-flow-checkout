@@ -1,4 +1,26 @@
 
+import { AsaasCustomerRequest } from './types';
+
+export function validateAsaasCustomerRequest(data: AsaasCustomerRequest): string | null {
+  if (!data.name) {
+    return 'O nome do cliente é obrigatório';
+  }
+
+  if (!data.cpfCnpj) {
+    return 'O CPF/CNPJ do cliente é obrigatório';
+  }
+
+  if (!data.orderId) {
+    return 'O ID do pedido é obrigatório';
+  }
+
+  if (data.value === undefined || data.value <= 0) {
+    return 'O valor deve ser maior que zero';
+  }
+
+  return null;
+}
+
 export function validateEnvironmentVariables() {
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;

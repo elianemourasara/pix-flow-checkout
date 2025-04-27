@@ -1,6 +1,60 @@
 
 import { Handler, HandlerEvent } from '@netlify/functions';
-import { getAsaasApiKey, clearKeyCache } from '../src/services/asaasKeyService';
+import { supabase } from './asaas/supabase-client';
+
+// Função para limpar cache local
+function clearKeyCache() {
+  console.log('Cache limpo (função simulada)');
+  return true;
+}
+
+// Função para obter chave API do Asaas
+async function getAsaasApiKey(isSandbox: boolean, useCache: boolean = true): Promise<string | null> {
+  try {
+    // Primeiro tenta obter do sistema novo (asaas_api_keys)
+    const { data: activeKeys } = await supabase
+      .from('asaas_api_keys')
+      .select('*')
+      .eq('is_active', true)
+      .eq('is_sandbox', isSandbox)
+      .order('priority', { ascending: true })
+      .limit(1);
+      
+    if (activeKeys && activeKeys.length > 0) {
+      console.log(`Usando chave do novo sistema: ${activeKeys[0].key_name}`);
+      return activeKeys[0].api_key;
+    }
+    
+    // Fallback para o sistema legado
+    console.log('Chave não encontrada no novo sistema, tentando sistema legado...');
+    
+    const { data: legacyConfig, error } = await supabase
+      .from('asaas_config')
+      .select('sandbox_key, production_key')
+      .maybeSingle();
+      
+    if (error) throw error;
+    
+    if (!legacyConfig) {
+      console.error('Nenhuma configuração encontrada no sistema legado');
+      return null;
+    }
+    
+    const legacyKey = isSandbox ? legacyConfig.sandbox_key : legacyConfig.production_key;
+    
+    if (!legacyKey) {
+      console.error(`Nenhuma chave ${isSandbox ? 'sandbox' : 'produção'} encontrada no sistema legado`);
+      return null;
+    }
+    
+    console.log('Usando chave do sistema legado');
+    return legacyKey;
+    
+  } catch (error) {
+    console.error('Erro ao buscar chave:', error);
+    return null;
+  }
+}
 
 const handler: Handler = async (event: HandlerEvent) => {
   // CORS Headers

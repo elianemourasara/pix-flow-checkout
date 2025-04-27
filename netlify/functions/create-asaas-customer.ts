@@ -4,7 +4,25 @@ import { supabase } from './asaas/supabase-client';
 import { AsaasCustomerRequest } from './asaas/types';
 import { validateAsaasCustomerRequest } from './asaas/validation';
 import { processPaymentFlow } from './asaas/payment-processor';
-import { getAsaasApiKey } from '../src/services/asaasKeyService';
+
+// Função para obter chave da API Asaas
+async function getAsaasApiKey(isSandbox: boolean): Promise<string | null> {
+  try {
+    // Buscar configuração do banco de dados
+    const { data, error } = await supabase
+      .from('asaas_config')
+      .select('sandbox_key, production_key')
+      .single();
+    
+    if (error) throw error;
+    
+    // Retornar a chave apropriada com base no ambiente
+    return isSandbox ? data.sandbox_key : data.production_key;
+  } catch (error) {
+    console.error('Erro ao obter chave API do Asaas:', error);
+    return null;
+  }
+}
 
 const handler: Handler = async (event: HandlerEvent) => {
   if (event.httpMethod !== 'POST') {

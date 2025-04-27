@@ -11,6 +11,7 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    strictPort: false, // Permitir fallback para outras portas se 8080 estiver em uso
   },
   build: {
     // Ensure proper output directory
