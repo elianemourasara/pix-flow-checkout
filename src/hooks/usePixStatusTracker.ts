@@ -95,9 +95,46 @@ export const usePixStatusTracker = (
     setIsCheckingStatus(true);
     try {
       console.log(`Checking status for payment ID: ${paymentId}`);
-      const result = await checkPaymentStatus(paymentId);
-      console.log(`Status check result:`, result);
-      processPaymentStatusResult(result);
+      
+      // Implementar mecanismo de retry para lidar com falhas temporárias
+      let retries = 0;
+      const MAX_RETRIES = 2;
+      let lastError = null;
+      let result = null;
+      
+      while (retries <= MAX_RETRIES) {
+        try {
+          result = await checkPaymentStatus(paymentId);
+          console.log(`Status check result (attempt ${retries + 1}):`, result);
+          
+          // Verificar se o resultado é válido
+          if (result && (typeof result === 'string' || 
+              (typeof result === 'object' && 'status' in result))) {
+            break; // Resultado válido, sair do loop
+          }
+          
+          // Se chegou aqui, o resultado não é válido
+          retries++;
+          if (retries <= MAX_RETRIES) {
+            // Aguardar antes de tentar novamente (exponential backoff)
+            await new Promise(r => setTimeout(r, 800 * Math.pow(2, retries)));
+          }
+        } catch (error) {
+          lastError = error;
+          console.error(`Erro na tentativa ${retries + 1}:`, error);
+          retries++;
+          if (retries <= MAX_RETRIES) {
+            await new Promise(r => setTimeout(r, 800 * Math.pow(2, retries)));
+          }
+        }
+      }
+      
+      if (result) {
+        processPaymentStatusResult(result);
+      } else {
+        console.error("Nenhum resultado válido após todas as tentativas:", { lastError });
+        // Em último caso, manter o status atual
+      }
     } catch (error) {
       console.error("Error checking payment status:", error);
       handleApiError(error, {
