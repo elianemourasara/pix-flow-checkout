@@ -1,6 +1,7 @@
 
 import { Handler, HandlerEvent } from '@netlify/functions';
 import { supabase } from './asaas/supabase-client';
+import { getAsaasApiKey, getAsaasApiBaseUrl } from './asaas/get-asaas-api-key';
 
 export const handler: Handler = async (event: HandlerEvent) => {
   // Headers padrão para CORS
@@ -110,12 +111,10 @@ export const handler: Handler = async (event: HandlerEvent) => {
         throw new Error('Erro ao buscar configuração do gateway de pagamento');
       }
       
-      // Determinar qual chave API usar
+      // Determinar qual chave API usar usando a função auxiliar
       const usesSandbox = asaasConfig.sandbox === true;
-      const apiKey = usesSandbox ? asaasConfig.sandbox_key : asaasConfig.production_key;
-      const apiBaseUrl = usesSandbox 
-        ? 'https://sandbox.asaas.com/api/v3' 
-        : 'https://api.asaas.com/api/v3';
+      const apiKey = await getAsaasApiKey(usesSandbox);
+      const apiBaseUrl = getAsaasApiBaseUrl(usesSandbox);
       
       console.log(`Usando ambiente: ${usesSandbox ? 'Sandbox' : 'Produção'}`);
       
@@ -210,7 +209,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
           paymentId,
           updatedAt: new Date().toISOString(),
           source: 'error_fallback',
-          error: asaasError.message || 'Erro ao consultar API externa'
+          error: asaasError instanceof Error ? asaasError.message : 'Erro ao consultar API externa'
         }),
       };
     }
@@ -239,7 +238,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
         paymentId,
         updatedAt: new Date().toISOString(),
         source: 'error_handler',
-        errorMessage: error.message || 'Erro interno no servidor'
+        errorMessage: error instanceof Error ? error.message : 'Erro interno no servidor'
       }),
     };
   }

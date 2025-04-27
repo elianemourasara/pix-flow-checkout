@@ -1,3 +1,4 @@
+
 import { PaymentStatus } from '@/types/checkout';
 
 interface PaymentStatusResponse {
@@ -64,7 +65,8 @@ export const checkPaymentStatus = async (paymentId: string): Promise<PaymentStat
             await new Promise(r => setTimeout(r, 500 * Math.pow(2, retries)));
           }
         }
-      } catch (fetchError) {
+      } catch (error: unknown) {
+        const fetchError = error as Error;
         lastError = fetchError.message;
         console.warn(`Erro de fetch na tentativa ${retries + 1}: ${lastError}`);
         retries++;
@@ -83,12 +85,13 @@ export const checkPaymentStatus = async (paymentId: string): Promise<PaymentStat
       error: `Não foi possível verificar o status após ${MAX_RETRIES + 1} tentativas: ${lastError}`,
       source: 'client_fallback'
     };
-  } catch (error) {
-    console.error('Erro ao verificar status do pagamento:', error);
+  } catch (error: unknown) {
+    const thrownError = error as Error;
+    console.error('Erro ao verificar status do pagamento:', thrownError);
     // Em caso de erro, assumir que o pagamento ainda está pendente
     return {
       status: 'PENDING',
-      error: error.message || 'Erro desconhecido',
+      error: thrownError.message || 'Erro desconhecido',
       source: 'exception_handler' 
     };
   }

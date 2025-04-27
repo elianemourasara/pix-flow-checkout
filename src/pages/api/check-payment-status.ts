@@ -35,7 +35,7 @@ export async function handler(req: Request) {
       console.log(`Found payment status in orders table: ${orderData.status}`);
       
       // Return status from orders table
-      const response = new Response(
+      return new Response(
         JSON.stringify({
           status: orderData.status,
           paymentId: paymentId,
@@ -49,9 +49,6 @@ export async function handler(req: Request) {
           },
         }
       );
-      
-      console.log('Sending payment status response:', await response.clone().text());
-      return response;
     }
     
     // If not found in orders, try the asaas_payments table
@@ -65,7 +62,7 @@ export async function handler(req: Request) {
       console.log(`Found payment status in asaas_payments table: ${paymentData.status}`);
       
       // Return status from asaas_payments table
-      const response = new Response(
+      return new Response(
         JSON.stringify({
           status: paymentData.status,
           paymentId: paymentId,
@@ -79,30 +76,42 @@ export async function handler(req: Request) {
           },
         }
       );
-      
-      console.log('Sending payment status response:', await response.clone().text());
-      return response;
     }
+    
+    // If no status found in either table, return default PENDING status
+    return new Response(
+      JSON.stringify({
+        status: 'PENDING',
+        paymentId: paymentId,
+        updatedAt: new Date().toISOString(),
+        source: 'api_default'
+      }),
+      {
+        status: 200,
+        headers: { 
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate'
+        },
+      }
+    );
   } catch (err) {
     console.error('Error fetching payment status from database:', err);
+    
+    // Return graceful error response
+    return new Response(
+      JSON.stringify({
+        status: 'PENDING',
+        paymentId: paymentId,
+        updatedAt: new Date().toISOString(),
+        source: 'api_error_handler'
+      }),
+      {
+        status: 200,
+        headers: { 
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate'
+        },
+      }
+    );
   }
-  
-  // If no status found in either table or error occurred, return default PENDING status
-  const response = new Response(
-    JSON.stringify({
-      status: 'PENDING',
-      paymentId: paymentId,
-      updatedAt: new Date().toISOString()
-    }),
-    {
-      status: 200,
-      headers: { 
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-cache, no-store, must-revalidate'
-      },
-    }
-  );
-  
-  console.log('Sending default payment status response:', await response.clone().text());
-  return response;
 }
