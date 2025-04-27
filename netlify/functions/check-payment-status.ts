@@ -111,7 +111,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
         throw new Error('Erro ao buscar configuração do gateway de pagamento');
       }
       
-      // Determinar qual chave API usar usando a função auxiliar
+      // Determinar qual chave API usar
       const usesSandbox = asaasConfig.sandbox === true;
       const apiKey = await getAsaasApiKey(usesSandbox);
       const apiBaseUrl = getAsaasApiBaseUrl(usesSandbox);

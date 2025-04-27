@@ -4,6 +4,19 @@ import { supabase } from '../../integrations/supabase/client';
 export async function handler(req: Request) {
   console.log('Check payment status API called');
   
+  // Define CORS headers
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-cache, no-store, must-revalidate'
+  };
+  
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+  
   // Parse the payment ID from URL query parameters
   const url = new URL(req.url);
   const paymentId = url.searchParams.get('paymentId');
@@ -18,7 +31,7 @@ export async function handler(req: Request) {
       }),
       {
         status: 400,
-        headers: { 'Content-Type': 'application/json' },
+        headers: corsHeaders
       }
     );
   }
@@ -39,14 +52,12 @@ export async function handler(req: Request) {
         JSON.stringify({
           status: orderData.status,
           paymentId: paymentId,
-          updatedAt: orderData.updated_at
+          updatedAt: orderData.updated_at,
+          source: 'orders_table'
         }),
         {
           status: 200,
-          headers: { 
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-cache, no-store, must-revalidate'
-          },
+          headers: corsHeaders
         }
       );
     }
@@ -66,14 +77,12 @@ export async function handler(req: Request) {
         JSON.stringify({
           status: paymentData.status,
           paymentId: paymentId,
-          updatedAt: paymentData.updated_at
+          updatedAt: paymentData.updated_at,
+          source: 'asaas_payments_table'
         }),
         {
           status: 200,
-          headers: { 
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-cache, no-store, must-revalidate'
-          },
+          headers: corsHeaders
         }
       );
     }
@@ -88,10 +97,7 @@ export async function handler(req: Request) {
       }),
       {
         status: 200,
-        headers: { 
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache, no-store, must-revalidate'
-        },
+        headers: corsHeaders
       }
     );
   } catch (err) {
@@ -103,14 +109,12 @@ export async function handler(req: Request) {
         status: 'PENDING',
         paymentId: paymentId,
         updatedAt: new Date().toISOString(),
-        source: 'api_error_handler'
+        source: 'api_error_handler',
+        error: err instanceof Error ? err.message : 'Unknown error'
       }),
       {
         status: 200,
-        headers: { 
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache, no-store, must-revalidate'
-        },
+        headers: corsHeaders
       }
     );
   }

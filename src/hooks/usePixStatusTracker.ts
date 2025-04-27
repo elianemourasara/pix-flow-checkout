@@ -1,191 +1,134 @@
 
-import { useState, useEffect, useCallback } from 'react';
-import { PixPaymentData, Order, PaymentStatus } from '@/types/checkout';
+import { useState, useEffect, useRef } from 'react';
+import { PaymentStatus } from '@/types/checkout';
 import { checkPaymentStatus } from '@/services/asaasService';
-import { handleApiError } from '@/utils/errorHandling';
-import { useToast } from '@/hooks/use-toast';
-import { useNavigate } from 'react-router-dom';
 
-export const usePixStatusTracker = (
-  paymentData: PixPaymentData | null,
-  order: Order | null
-) => {
-  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(null);
-  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
-  const { toast } = useToast();
-  const navigate = useNavigate();
+interface UsePixStatusTrackerProps {
+  paymentId: string | null;
+  initialStatus?: PaymentStatus | null;
+  pollingInterval?: number;
+  maxPolls?: number;
+}
 
-  // Extract the status normalization logic to a separate function
-  const normalizePaymentStatus = (result: any): PaymentStatus | null => {
-    if (typeof result === 'string') {
-      return result as PaymentStatus;
-    } else if (result && typeof result === 'object') {
-      // If result is an object with a status property
-      if ('status' in result) {
-        return (result as { status: PaymentStatus }).status;
-      }
-    }
-    return null;
-  };
-
-  // Extract the logic to check if payment is confirmed
-  const isPaymentConfirmed = (result: any): boolean => {
-    return result === 'CONFIRMED' || 
-      (typeof result === 'object' && 
-       result && 
-       'status' in result && 
-       result.status === 'CONFIRMED');
-  };
-
-  // Show success toast when payment is confirmed
-  const showConfirmationToast = () => {
-    toast({
-      title: "Pagamento confirmado!",
-      description: "Seu pagamento foi recebido com sucesso.",
-      variant: "default",
-    });
-  };
-
-  // Handle redirection to success page when payment is confirmed
-  const handlePaymentConfirmed = useCallback(() => {
-    // Only proceed with navigation if we have a valid order
-    if (order) {
-      console.log('Payment confirmed! Redirecting to success page...');
-      
-      // Prepare product info to pass to success page
-      const productInfo = {
-        has_whatsapp_support: order.has_whatsapp_support || false,
-        whatsapp_number: order.whatsapp_number || '',
-        type: order.productType || 'physical'
-      };
-      
-      // Navigate to success page with order and product info
-      setTimeout(() => {
-        navigate('/success', { 
-          state: { 
-            order,
-            product: productInfo
-          } 
-        });
-      }, 1000); // Add slight delay to ensure toast is visible
-    } else {
-      console.error('Cannot navigate to success: missing order data');
-    }
-  }, [order, navigate]);
-
-  // Process the payment status result
-  const processPaymentStatusResult = useCallback((result: any) => {
-    const status = normalizePaymentStatus(result);
-    if (status) {
-      setPaymentStatus(status);
-      
-      // Log the status change for debugging
-      console.log(`Payment status updated to: ${status}`);
-    }
-
-    // Check if payment is confirmed to show toast and navigate
-    if (isPaymentConfirmed(result)) {
-      showConfirmationToast();
-      handlePaymentConfirmed();
-    }
-  }, [handlePaymentConfirmed]);
-
-  // Check payment status, memoize this function so it can be safely used in useEffect and as a callback
-  const performStatusCheck = useCallback(async (paymentId: string) => {
-    setIsCheckingStatus(true);
-    try {
-      console.log(`Checking status for payment ID: ${paymentId}`);
-      
-      // Implementar mecanismo de retry para lidar com falhas temporárias
-      let retries = 0;
-      const MAX_RETRIES = 2;
-      let lastError = null;
-      let result = null;
-      
-      while (retries <= MAX_RETRIES) {
-        try {
-          result = await checkPaymentStatus(paymentId);
-          console.log(`Status check result (attempt ${retries + 1}):`, result);
-          
-          // Verificar se o resultado é válido
-          if (result && (typeof result === 'string' || 
-              (typeof result === 'object' && 'status' in result))) {
-            break; // Resultado válido, sair do loop
-          }
-          
-          // Se chegou aqui, o resultado não é válido
-          retries++;
-          if (retries <= MAX_RETRIES) {
-            // Aguardar antes de tentar novamente (exponential backoff)
-            await new Promise(r => setTimeout(r, 800 * Math.pow(2, retries)));
-          }
-        } catch (error) {
-          lastError = error;
-          console.error(`Erro na tentativa ${retries + 1}:`, error);
-          retries++;
-          if (retries <= MAX_RETRIES) {
-            await new Promise(r => setTimeout(r, 800 * Math.pow(2, retries)));
-          }
-        }
-      }
-      
-      if (result) {
-        processPaymentStatusResult(result);
-      } else {
-        console.error("Nenhum resultado válido após todas as tentativas:", { lastError });
-        // Em último caso, manter o status atual
-      }
-    } catch (error) {
-      console.error("Error checking payment status:", error);
-      handleApiError(error, {
-        defaultMessage: "Não foi possível verificar o status do pagamento."
-      });
-    } finally {
-      setIsCheckingStatus(false);
-    }
-  }, [processPaymentStatusResult]);
-
-  // Auto-polling mechanism for status checks
-  useEffect(() => {
-    if (!paymentData?.paymentId || !order) {
-      console.log("Missing payment ID or order data for auto-polling");
-      return;
-    }
-
-    // Initial check
-    console.log("Starting auto-polling for payment status");
-    performStatusCheck(paymentData.paymentId);
+export const usePixStatusTracker = ({
+  paymentId,
+  initialStatus = null,
+  pollingInterval = 8000, // 8 segundos entre verificações
+  maxPolls = 15 // Máximo de 15 verificações (2 minutos total)
+}: UsePixStatusTrackerProps) => {
+  const [status, setStatus] = useState<PaymentStatus | null>(initialStatus);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pollCount, setPollCount] = useState(0);
+  const timerRef = useRef<number | null>(null);
+  const isMountedRef = useRef(true);
+  
+  // Função para verificar o status
+  const checkStatus = async () => {
+    if (!paymentId) return;
     
-    // Set up polling interval (check every 10 seconds)
-    const pollingInterval = setInterval(() => {
-      if (paymentStatus !== 'CONFIRMED' && paymentStatus !== 'RECEIVED') {
-        console.log("Auto-polling: checking payment status");
-        performStatusCheck(paymentData.paymentId);
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      console.log(`[usePixStatusTracker] Verificando status para: ${paymentId}`);
+      const result = await checkPaymentStatus(paymentId);
+      
+      // Se o componente foi desmontado, não atualizar o estado
+      if (!isMountedRef.current) return;
+      
+      // Se o resultado for objeto com status e erro
+      if (typeof result === 'object' && 'status' in result) {
+        if (result.error) {
+          console.warn(`[usePixStatusTracker] Erro não crítico: ${result.error}`);
+        }
+        
+        console.log(`[usePixStatusTracker] Status recebido: ${result.status} (fonte: ${result.source || 'desconhecida'})`);
+        setStatus(result.status);
       } else {
-        console.log("Payment confirmed, stopping auto-polling");
-        clearInterval(pollingInterval);
+        // Se o resultado for direto o status
+        console.log(`[usePixStatusTracker] Status recebido: ${result}`);
+        setStatus(result);
       }
-    }, 10000);
+      
+    } catch (e) {
+      if (!isMountedRef.current) return;
+      
+      const errorMessage = e instanceof Error ? e.message : 'Erro desconhecido';
+      console.error(`[usePixStatusTracker] Erro ao verificar status: ${errorMessage}`);
+      setError(errorMessage);
+      
+    } finally {
+      if (isMountedRef.current) {
+        setIsLoading(false);
+        setPollCount(prev => prev + 1);
+      }
+    }
+  };
+  
+  // Iniciar verificações quando o paymentId estiver disponível
+  useEffect(() => {
+    if (!paymentId) return;
+    
+    // Verificação inicial imediata
+    checkStatus();
+    
+    // Configurar o polling
+    const setupPolling = () => {
+      if (timerRef.current) {
+        window.clearTimeout(timerRef.current);
+      }
+      
+      timerRef.current = window.setTimeout(() => {
+        if (pollCount >= maxPolls) {
+          console.log(`[usePixStatusTracker] Atingido limite máximo de ${maxPolls} verificações`);
+          return;
+        }
+        
+        checkStatus();
+        setupPolling();
+      }, pollingInterval);
+    };
+    
+    setupPolling();
     
     return () => {
-      console.log("Cleaning up payment status polling");
-      clearInterval(pollingInterval);
+      isMountedRef.current = false;
+      if (timerRef.current) {
+        window.clearTimeout(timerRef.current);
+      }
     };
-  }, [paymentData?.paymentId, order, performStatusCheck, paymentStatus]);
-
-  // Public method to manually refresh status
-  const refreshStatus = async () => {
-    if (!paymentData?.paymentId) {
-      console.log("Cannot refresh status: missing payment ID");
-      return;
+  }, [paymentId, pollCount]);
+  
+  // Reiniciar contagem quando o paymentId mudar
+  useEffect(() => {
+    setPollCount(0);
+    setError(null);
+    
+    if (paymentId) {
+      console.log(`[usePixStatusTracker] Iniciando rastreamento para novo pagamento: ${paymentId}`);
     }
-    console.log("Manual refresh of payment status requested");
-    performStatusCheck(paymentData.paymentId);
+    
+    return () => {
+      if (timerRef.current) {
+        window.clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [paymentId]);
+  
+  // Função para forçar uma verificação manual
+  const refreshStatus = () => {
+    if (isLoading) return;
+    checkStatus();
   };
-
+  
   return {
-    paymentStatus,
-    isCheckingStatus,
-    refreshStatus
+    status,
+    isLoading,
+    error,
+    pollCount,
+    refreshStatus,
+    isMaxPolls: pollCount >= maxPolls
   };
 };
