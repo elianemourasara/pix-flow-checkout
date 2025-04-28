@@ -5,7 +5,9 @@ import { supabase } from './asaas/supabase-client';
 import { AsaasCustomerRequest } from './asaas/types';
 import { validateAsaasCustomerRequest } from './asaas/validation';
 import { processPaymentFlow } from './asaas/payment-processor';
-import { getAsaasApiKey, getAsaasApiBaseUrl } from './asaas/get-asaas-api-key';
+import { getAsaasApiKey } from './asaas/get-asaas-api-key';
+import { getAsaasApiBaseUrl } from './asaas/get-asaas-api-base-url'; // novo caminho correto
+
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
