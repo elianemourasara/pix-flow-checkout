@@ -1,3 +1,4 @@
+// /netlify/functions/create-asaas-customer.ts (recriado com logs completos)
 
 import { Handler, HandlerEvent } from '@netlify/functions';
 import { supabase } from './asaas/supabase-client';
@@ -6,7 +7,6 @@ import { validateAsaasCustomerRequest } from './asaas/validation';
 import { processPaymentFlow } from './asaas/payment-processor';
 import { getAsaasApiKey, getAsaasApiBaseUrl } from './asaas/get-asaas-api-key';
 
-// Define CORS headers para permitir chamadas do frontend
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -15,7 +15,6 @@ const corsHeaders = {
 };
 
 const handler: Handler = async (event: HandlerEvent) => {
-  // Handle CORS preflight
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 204,
@@ -33,16 +32,8 @@ const handler: Handler = async (event: HandlerEvent) => {
 
   try {
     const requestData: AsaasCustomerRequest = JSON.parse(event.body || '{}');
-    console.log('Solicitação recebida:', {
-      name: requestData.name ? requestData.name.substring(0, 10) + '...' : 'não fornecido',
-      email: requestData.email || 'não fornecido',
-      cpfCnpjPartial: requestData.cpfCnpj ? `${requestData.cpfCnpj.substring(0, 4)}...` : 'não fornecido',
-      phone: requestData.phone || 'não fornecido',
-      orderId: requestData.orderId || 'não fornecido',
-      value: requestData.value
-    });
+    console.log('Solicitação recebida:', requestData);
 
-    // Validation
     const validationError = validateAsaasCustomerRequest(requestData);
     if (validationError) {
       console.error('Erro de validação:', validationError);
@@ -53,56 +44,52 @@ const handler: Handler = async (event: HandlerEvent) => {
       };
     }
 
-    // Determine environment based on USE_ASAAS_PRODUCTION
     const useProduction = process.env.USE_ASAAS_PRODUCTION === 'true';
     const isSandbox = !useProduction;
-    
-    // Obter a URL da API com base no ambiente
+
     const apiBaseUrl = getAsaasApiBaseUrl(isSandbox);
-    
-    console.log(`Ambiente: ${isSandbox ? 'Sandbox' : 'Produção'} (USE_ASAAS_PRODUCTION=${useProduction ? 'true' : 'false'})`);
-    console.log(`API Base URL: ${apiBaseUrl}`);
-    
-    // Obter a chave API com mecanismo de fallback
+    console.log(`[INFO] Ambiente detectado: ${isSandbox ? 'Sandbox' : 'Produção'}`);
+    console.log(`[INFO] API Base URL: ${apiBaseUrl}`);
+
     const apiKey = await getAsaasApiKey(isSandbox);
-    
     if (!apiKey) {
-      console.error(`Nenhuma chave ${isSandbox ? 'sandbox' : 'produção'} encontrada`);
+      console.error(`[ERRO] Nenhuma chave API ${isSandbox ? 'sandbox' : 'produção'} configurada.`);
       return {
         statusCode: 500,
         headers: corsHeaders,
         body: JSON.stringify({ error: 'API key not configured' }),
       };
     }
-    
-    console.log(`Chave API obtida com sucesso: ${apiKey.substring(0, 8)}...`);
-    
-    // Process payment with the obtained API key
+
+    console.log(`[INFO] Chave API obtida: ${apiKey.substring(0, 8)}...`);
+    console.log('[INFO] Enviando para processPaymentFlow...');
+
     const result = await processPaymentFlow(
       requestData,
       apiKey,
       supabase,
       apiBaseUrl
     );
-    
+
+    console.log('[SUCESSO] Pagamento criado com sucesso:', result);
+
     return {
       statusCode: 200,
       headers: corsHeaders,
       body: JSON.stringify(result),
     };
-  } catch (error) {
-    console.error('Erro no processamento:', error);
-    
-    // Extrair detalhes do erro para logging mais detalhado
+  } catch (error: any) {
+    console.error('[FATAL] Erro no processamento:', error);
+
     const errorDetails = {
       message: error.message || 'Erro desconhecido',
       name: error.name || 'Error',
       stack: error.stack ? error.stack.substring(0, 300) + '...' : 'No stack trace',
       details: error.details || null
     };
-    
-    console.error('Detalhes do erro:', errorDetails);
-    
+
+    console.error('[FATAL] Detalhes do erro:', errorDetails);
+
     return {
       statusCode: 500,
       headers: corsHeaders,
