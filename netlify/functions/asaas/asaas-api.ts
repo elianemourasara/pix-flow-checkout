@@ -13,23 +13,25 @@ export async function createAsaasCustomer(
   apiUrl: string = 'https://sandbox.asaas.com/api/v3'
 ): Promise<AsaasCustomerResponse> {
   // Format phone: remove all non-numeric characters
-  const formattedPhone = data.phone.replace(/\D/g, '');
+  const formattedPhone = data.phone ? data.phone.replace(/\D/g, '') : '';
   
   const customerData = {
     name: data.name,
-    cpfCnpj: data.cpfCnpj.replace(/\D/g, ''), // Remove non-numeric characters
-    email: data.email,
+    cpfCnpj: data.cpfCnpj ? data.cpfCnpj.replace(/\D/g, '') : '', // Remove non-numeric characters
+    email: data.email || '',
     phone: formattedPhone,
     mobilePhone: formattedPhone,
     notificationDisabled: false
   };
   
   try {
-    console.log(`Enviando requisição para ${apiUrl}/customers`);
+    const endpoint = `${apiUrl}/customers`;
+    console.log(`Enviando requisição para ${endpoint}`);
     console.log('Dados do cliente:', customerData);
+    console.log('API URL:', apiUrl);
     console.log('Usando chave API:', apiKey ? `${apiKey.substring(0, 8)}...` : 'Não definida');
     
-    const response = await fetch(`${apiUrl}/customers`, {
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -79,11 +81,13 @@ export async function createAsaasPayment(
   };
   
   try {
-    console.log(`Enviando requisição para ${apiUrl}/payments`);
+    const endpoint = `${apiUrl}/payments`;
+    console.log(`Enviando requisição para ${endpoint}`);
     console.log('Dados do pagamento:', paymentData);
+    console.log('API URL:', apiUrl);
     console.log('Usando chave API:', apiKey ? `${apiKey.substring(0, 8)}...` : 'Não definida');
     
-    const response = await fetch(`${apiUrl}/payments`, {
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -116,11 +120,12 @@ export async function getAsaasPixQrCode(
   apiUrl: string = 'https://sandbox.asaas.com/api/v3'
 ): Promise<AsaasPixQrCodeResponse> {
   try {
+    const endpoint = `${apiUrl}/payments/${paymentId}/pixQrCode`;
     console.log(`Requesting QR code for payment ID: ${paymentId}`);
-    console.log(`API URL: ${apiUrl}/payments/${paymentId}/pixQrCode`);
+    console.log(`API URL: ${endpoint}`);
     console.log('Usando chave API:', apiKey ? `${apiKey.substring(0, 8)}...` : 'Não definida');
     
-    const response = await fetch(`${apiUrl}/payments/${paymentId}/pixQrCode`, {
+    const response = await fetch(endpoint, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

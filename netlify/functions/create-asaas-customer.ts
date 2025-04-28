@@ -6,10 +6,27 @@ import { validateAsaasCustomerRequest } from './asaas/validation';
 import { processPaymentFlow } from './asaas/payment-processor';
 import { getAsaasApiKey, getAsaasApiBaseUrl } from './asaas/get-asaas-api-key';
 
+// Define CORS headers para permitir chamadas do frontend
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Content-Type': 'application/json',
+  'Cache-Control': 'no-cache, no-store, must-revalidate'
+};
+
 const handler: Handler = async (event: HandlerEvent) => {
+  // Handle CORS preflight
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 204,
+      headers: corsHeaders
+    };
+  }
+
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
+      headers: corsHeaders,
       body: JSON.stringify({ error: 'Method Not Allowed' }),
     };
   }
@@ -24,6 +41,7 @@ const handler: Handler = async (event: HandlerEvent) => {
       console.error('Erro de validação:', validationError);
       return {
         statusCode: 400,
+        headers: corsHeaders,
         body: JSON.stringify({ error: validationError }),
       };
     }
@@ -45,6 +63,7 @@ const handler: Handler = async (event: HandlerEvent) => {
       console.error(`Nenhuma chave ${isSandbox ? 'sandbox' : 'produção'} encontrada`);
       return {
         statusCode: 500,
+        headers: corsHeaders,
         body: JSON.stringify({ error: 'API key not configured' }),
       };
     }
@@ -61,12 +80,14 @@ const handler: Handler = async (event: HandlerEvent) => {
     
     return {
       statusCode: 200,
+      headers: corsHeaders,
       body: JSON.stringify(result),
     };
   } catch (error) {
     console.error('Erro no processamento:', error);
     return {
       statusCode: 500,
+      headers: corsHeaders,
       body: JSON.stringify({ 
         error: 'Falha no processamento do pagamento',
         details: error.message

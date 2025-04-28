@@ -24,7 +24,7 @@ export async function processPaymentFlow(
     const { data: emailConfig } = await supabase
       .from('asaas_email_config')
       .select('use_temp_email, temp_email')
-      .single();
+      .maybeSingle();
       
     // If temporary email is configured and enabled, use it instead of customer's email
     if (emailConfig?.use_temp_email && emailConfig?.temp_email) {
@@ -32,6 +32,24 @@ export async function processPaymentFlow(
       console.log('Original customer email:', requestData.email);
       requestData.email = emailConfig.temp_email;
     }
+    
+    // Validar todos os campos obrigatórios antes de continuar
+    if (!requestData.name || !requestData.cpfCnpj || !requestData.orderId || !requestData.value) {
+      throw new Error('Dados de cliente insuficientes para criação no Asaas. Verifique name, cpfCnpj, orderId e value.');
+    }
+    
+    // Log completo dos dados de request para diagnóstico
+    console.log('Dados completos da requisição (sanitizados):', {
+      name: requestData.name,
+      cpfCnpjPartial: requestData.cpfCnpj ? `${requestData.cpfCnpj.substring(0, 4)}...` : 'não fornecido',
+      email: requestData.email,
+      phone: requestData.phone,
+      orderId: requestData.orderId,
+      value: requestData.value,
+      description: requestData.description
+    });
+    
+    console.log(`Chamando API Asaas (${apiUrl}) para criar cliente...`);
     
     // 1. Create customer in Asaas
     const customer = await createAsaasCustomer(requestData, apiKey, apiUrl);

@@ -108,8 +108,11 @@ export const handler: Handler = async (event) => {
       const apiBaseUrl = getAsaasApiBaseUrl(isSandbox);
       console.log(`Using Asaas API URL: ${apiBaseUrl}`);
       
+      const endpoint = `${apiBaseUrl}/payments/${paymentId}`;
+      console.log(`Calling Asaas API endpoint: ${endpoint}`);
+      
       // Query Asaas API
-      const response = await fetch(`${apiBaseUrl}/payments/${paymentId}`, {
+      const response = await fetch(endpoint, {
         headers: {
           'Content-Type': 'application/json',
           'access_token': apiKey
@@ -117,10 +120,14 @@ export const handler: Handler = async (event) => {
       });
       
       if (!response.ok) {
-        throw new Error(`Asaas API error: ${response.status}`);
+        const errorText = await response.text();
+        console.error(`Asaas API error: ${response.status} - ${response.statusText}`);
+        console.error('Error response body:', errorText);
+        throw new Error(`Asaas API error: ${response.status} - ${errorText.substring(0, 100)}`);
       }
       
       const asaasData = await response.json();
+      console.log('Asaas API response:', asaasData);
       
       // Update local tables
       try {

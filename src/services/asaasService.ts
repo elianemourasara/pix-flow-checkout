@@ -1,3 +1,4 @@
+
 import { PaymentStatus } from '@/types/checkout';
 
 interface PaymentStatusResponse {
@@ -140,12 +141,22 @@ export const generatePixPayment = async (billingData: any) => {
     };
     
     // Validate required fields
-    const requiredFields = ['name', 'cpfCnpj', 'email', 'phone', 'orderId', 'value'];
+    const requiredFields = ['name', 'cpfCnpj', 'orderId', 'value'];
     const missingFields = requiredFields.filter(field => !formattedData[field]);
     
     if (missingFields.length > 0) {
       throw new Error(`Campos obrigatórios faltando: ${missingFields.join(', ')}`);
     }
+    
+    // Log data before sending to API for debugging
+    console.log('Formatted data being sent to API:', {
+      name: formattedData.name,
+      cpfCnpjPartial: formattedData.cpfCnpj ? `${formattedData.cpfCnpj.substring(0, 4)}...` : 'não fornecido',
+      email: formattedData.email || 'não fornecido',
+      phone: formattedData.phone || 'não fornecido',
+      orderId: formattedData.orderId,
+      value: formattedData.value
+    });
     
     // Add a unique ID to avoid duplicate requests
     const requestId = `${formattedData.orderId}-${Date.now()}`;
@@ -165,9 +176,25 @@ export const generatePixPayment = async (billingData: any) => {
     console.log('Response status:', response.status);
     
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Error response from server:', errorText);
-      throw new Error(`Failed to generate PIX payment: ${response.status}`);
+      let errorMessage = `Failed to generate PIX payment: ${response.status}`;
+      try {
+        const errorText = await response.text();
+        console.error('Error response from server:', errorText);
+        
+        try {
+          const errorJson = JSON.parse(errorText);
+          if (errorJson.error || errorJson.details) {
+            errorMessage = `Erro: ${errorJson.error || ''} ${errorJson.details || ''}`;
+          }
+        } catch (jsonError) {
+          // If can't parse as JSON, use text as is
+          errorMessage = `Erro: ${errorText.substring(0, 100)}...`;
+        }
+      } catch (textError) {
+        console.error('Error getting response text:', textError);
+      }
+      
+      throw new Error(errorMessage);
     }
     
     const responseData = await response.json();

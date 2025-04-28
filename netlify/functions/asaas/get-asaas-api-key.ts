@@ -138,6 +138,7 @@ export function getAsaasApiBaseUrl(isSandboxParam?: boolean): string {
   
   console.log(`[getAsaasApiBaseUrl] Usando URL ${isSandbox ? 'SANDBOX' : 'PRODUÇÃO'} (USE_ASAAS_PRODUCTION=${useProductionEnv ? 'true' : 'false'})`);
   
+  // Correção: URL de produção estava sem "/api" no path
   return isSandbox 
     ? 'https://sandbox.asaas.com/api/v3' 
     : 'https://api.asaas.com/api/v3';
