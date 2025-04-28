@@ -4,25 +4,7 @@ import { supabase } from './asaas/supabase-client';
 import { AsaasCustomerRequest } from './asaas/types';
 import { validateAsaasCustomerRequest } from './asaas/validation';
 import { processPaymentFlow } from './asaas/payment-processor';
-
-// Função para obter chave da API Asaas
-async function getAsaasApiKey(isSandbox: boolean): Promise<string | null> {
-  try {
-    // Buscar configuração do banco de dados
-    const { data, error } = await supabase
-      .from('asaas_config')
-      .select('sandbox_key, production_key')
-      .single();
-    
-    if (error) throw error;
-    
-    // Retornar a chave apropriada com base no ambiente
-    return isSandbox ? data.sandbox_key : data.production_key;
-  } catch (error) {
-    console.error('Erro ao obter chave API do Asaas:', error);
-    return null;
-  }
-}
+import { getAsaasApiKey, getAsaasApiBaseUrl } from './asaas/get-asaas-api-key';
 
 const handler: Handler = async (event: HandlerEvent) => {
   if (event.httpMethod !== 'POST') {
@@ -46,14 +28,15 @@ const handler: Handler = async (event: HandlerEvent) => {
       };
     }
 
-    // Determine environment
+    // Determine environment based on USE_ASAAS_PRODUCTION
     const useProduction = process.env.USE_ASAAS_PRODUCTION === 'true';
     const isSandbox = !useProduction;
-    const apiBaseUrl = isSandbox 
-      ? 'https://sandbox.asaas.com/api/v3' 
-      : 'https://api.asaas.com/v3';
-      
-    console.log(`Ambiente: ${isSandbox ? 'Sandbox' : 'Produção'}`);
+    
+    // Obter a URL da API com base no ambiente
+    const apiBaseUrl = getAsaasApiBaseUrl(isSandbox);
+    
+    console.log(`Ambiente: ${isSandbox ? 'Sandbox' : 'Produção'} (USE_ASAAS_PRODUCTION=${useProduction ? 'true' : 'false'})`);
+    console.log(`API Base URL: ${apiBaseUrl}`);
     
     // Obter a chave API com mecanismo de fallback
     const apiKey = await getAsaasApiKey(isSandbox);

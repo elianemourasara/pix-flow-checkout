@@ -1,7 +1,7 @@
 
 import { Handler } from '@netlify/functions';
 import { supabase } from './asaas/supabase-client';
-import { getAsaasApiKey } from './asaas/get-asaas-api-key';
+import { getAsaasApiKey, getAsaasApiBaseUrl } from './asaas/get-asaas-api-key';
 
 // Define CORS headers
 const corsHeaders = {
@@ -91,27 +91,25 @@ export const handler: Handler = async (event) => {
     try {
       console.log('Attempting to get status directly from Asaas API...');
       
-      // Get Asaas configuration
-      const { data: asaasConfig, error: configError } = await supabase
-        .from('asaas_config')
-        .select('*')
-        .limit(1)
-        .maybeSingle();
-        
-      if (configError) {
-        throw new Error('Error fetching payment gateway configuration');
-      }
+      // Determine environment based on USE_ASAAS_PRODUCTION
+      const useProduction = process.env.USE_ASAAS_PRODUCTION === 'true';
+      const isSandbox = !useProduction;
+      
+      console.log(`Ambiente: ${isSandbox ? 'Sandbox' : 'Produção'} (USE_ASAAS_PRODUCTION=${useProduction ? 'true' : 'false'})`);
       
       // Get API key with sandbox flag
-      const usesSandbox = asaasConfig?.sandbox === true;
-      const apiKey = await getAsaasApiKey(usesSandbox);
+      const apiKey = await getAsaasApiKey(isSandbox);
       
       if (!apiKey) {
-        throw new Error(`${usesSandbox ? 'Sandbox' : 'Production'} API key not configured`);
+        throw new Error(`${isSandbox ? 'Sandbox' : 'Production'} API key not configured`);
       }
       
+      // Get API base URL
+      const apiBaseUrl = getAsaasApiBaseUrl(isSandbox);
+      console.log(`Using Asaas API URL: ${apiBaseUrl}`);
+      
       // Query Asaas API
-      const response = await fetch(`https://${usesSandbox ? 'sandbox.' : ''}api.asaas.com/v3/payments/${paymentId}`, {
+      const response = await fetch(`${apiBaseUrl}/payments/${paymentId}`, {
         headers: {
           'Content-Type': 'application/json',
           'access_token': apiKey
@@ -160,7 +158,8 @@ export const handler: Handler = async (event) => {
           status: asaasData.status,
           paymentId,
           updatedAt: asaasData.dateCreated || new Date().toISOString(),
-          source: 'asaas_api'
+          source: 'asaas_api',
+          environment: isSandbox ? 'sandbox' : 'production'
         })
       };
       
