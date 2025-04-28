@@ -13,8 +13,8 @@ interface UsePixStatusTrackerProps {
 export const usePixStatusTracker = ({
   paymentId,
   initialStatus = null,
-  pollingInterval = 8000, // 8 segundos entre verificações
-  maxPolls = 15 // Máximo de 15 verificações (2 minutos total)
+  pollingInterval = 8000,
+  maxPolls = 15
 }: UsePixStatusTrackerProps) => {
   const [status, setStatus] = useState<PaymentStatus | null>(initialStatus);
   const [isLoading, setIsLoading] = useState(false);
@@ -22,8 +22,8 @@ export const usePixStatusTracker = ({
   const [pollCount, setPollCount] = useState(0);
   const timerRef = useRef<number | null>(null);
   const isMountedRef = useRef(true);
-  
-  // Função para verificar o status
+
+  // Check status function
   const checkStatus = async () => {
     if (!paymentId) return;
     
@@ -31,31 +31,26 @@ export const usePixStatusTracker = ({
     setError(null);
     
     try {
-      console.log(`[usePixStatusTracker] Verificando status para: ${paymentId}`);
+      console.log(`[usePixStatusTracker] Checking status for: ${paymentId}`);
       const result = await checkPaymentStatus(paymentId);
       
-      // Se o componente foi desmontado, não atualizar o estado
       if (!isMountedRef.current) return;
       
-      // Se o resultado for objeto com status e erro
+      // Handle response
       if (typeof result === 'object' && 'status' in result) {
-        if (result.error) {
-          console.warn(`[usePixStatusTracker] Erro não crítico: ${result.error}`);
-        }
-        
-        console.log(`[usePixStatusTracker] Status recebido: ${result.status} (fonte: ${result.source || 'desconhecida'})`);
         setStatus(result.status);
+        if (result.error) {
+          console.warn(`[usePixStatusTracker] Non-critical error: ${result.error}`);
+        }
       } else {
-        // Se o resultado for direto o status
-        console.log(`[usePixStatusTracker] Status recebido: ${result}`);
         setStatus(result);
       }
       
     } catch (e) {
       if (!isMountedRef.current) return;
       
-      const errorMessage = e instanceof Error ? e.message : 'Erro desconhecido';
-      console.error(`[usePixStatusTracker] Erro ao verificar status: ${errorMessage}`);
+      const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+      console.error(`[usePixStatusTracker] Error checking status: ${errorMessage}`);
       setError(errorMessage);
       
     } finally {
@@ -65,15 +60,13 @@ export const usePixStatusTracker = ({
       }
     }
   };
-  
-  // Iniciar verificações quando o paymentId estiver disponível
+
+  // Start polling when paymentId is available
   useEffect(() => {
     if (!paymentId) return;
     
-    // Verificação inicial imediata
     checkStatus();
     
-    // Configurar o polling
     const setupPolling = () => {
       if (timerRef.current) {
         window.clearTimeout(timerRef.current);
@@ -81,7 +74,7 @@ export const usePixStatusTracker = ({
       
       timerRef.current = window.setTimeout(() => {
         if (pollCount >= maxPolls) {
-          console.log(`[usePixStatusTracker] Atingido limite máximo de ${maxPolls} verificações`);
+          console.log(`[usePixStatusTracker] Reached maximum ${maxPolls} checks`);
           return;
         }
         
@@ -99,14 +92,14 @@ export const usePixStatusTracker = ({
       }
     };
   }, [paymentId, pollCount]);
-  
-  // Reiniciar contagem quando o paymentId mudar
+
+  // Reset count when paymentId changes
   useEffect(() => {
     setPollCount(0);
     setError(null);
     
     if (paymentId) {
-      console.log(`[usePixStatusTracker] Iniciando rastreamento para novo pagamento: ${paymentId}`);
+      console.log(`[usePixStatusTracker] Starting tracking for new payment: ${paymentId}`);
     }
     
     return () => {
@@ -116,19 +109,13 @@ export const usePixStatusTracker = ({
       }
     };
   }, [paymentId]);
-  
-  // Função para forçar uma verificação manual
-  const refreshStatus = () => {
-    if (isLoading) return;
-    checkStatus();
-  };
-  
+
   return {
     status,
     isLoading,
     error,
     pollCount,
-    refreshStatus,
+    refreshStatus: checkStatus,
     isMaxPolls: pollCount >= maxPolls
   };
 };

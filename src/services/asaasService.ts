@@ -1,4 +1,3 @@
-
 import { PaymentStatus } from '@/types/checkout';
 
 interface PaymentStatusResponse {
@@ -46,40 +45,30 @@ export const checkPaymentStatus = async (paymentId: string): Promise<PaymentStat
             }
           });
           
-          if (response.ok) {
-            const data = await response.json();
-            console.log(`Status do pagamento ${paymentId} recebido:`, data);
-            
-            // Se não tiver status ou o status não for válido, assumir PENDING
-            if (!data.status || typeof data.status !== 'string') {
-              console.warn('Status inválido recebido da API:', data);
-              return 'PENDING' as PaymentStatus;
-            }
-            
-            // Normalize the status - ensure consistent formatting across the system
-            let normalizedStatus: PaymentStatus = data.status as PaymentStatus;
-            
-            // Remapear certos status do Asaas para o formato que usamos
-            if (normalizedStatus === 'RECEIVED') {
-              console.log('Remapeando status RECEIVED para CONFIRMED');
-              normalizedStatus = 'CONFIRMED';
-            }
-            
-            return normalizedStatus;
-          } else {
-            lastError = `${response.status} ${response.statusText}`;
-            console.warn(`Tentativa ${retries + 1} falhou: ${lastError}`);
-            retries++;
-            
-            if (retries <= MAX_RETRIES) {
-              // Aguardar antes de tentar novamente (exponential backoff)
-              await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(2, retries)));
-            }
+          if (!response.ok) {
+            throw new Error(`Error checking status: ${response.status}`);
           }
-        } catch (error: unknown) {
-          const fetchError = error as Error;
-          lastError = fetchError.message;
-          console.warn(`Erro de fetch na tentativa ${retries + 1}: ${lastError}`);
+          
+          const data = await response.json();
+          
+          // Se não tiver status ou o status não for válido, assumir PENDING
+          if (!data.status || typeof data.status !== 'string') {
+            console.warn('Invalid status received from API:', data);
+            return 'PENDING' as PaymentStatus;
+          }
+          
+          // Normalize status
+          let normalizedStatus: PaymentStatus = data.status as PaymentStatus;
+          if (normalizedStatus === 'RECEIVED') {
+            console.log('Remapeando status RECEIVED para CONFIRMED');
+            normalizedStatus = 'CONFIRMED';
+          }
+          
+          return normalizedStatus;
+          
+        } catch (error) {
+          lastError = error instanceof Error ? error.message : 'Unknown error';
+          console.warn(`Attempt ${retries + 1} failed: ${lastError}`);
           retries++;
           
           if (retries <= MAX_RETRIES) {
@@ -88,37 +77,34 @@ export const checkPaymentStatus = async (paymentId: string): Promise<PaymentStat
         }
       }
       
+      // After all retries failed
       console.error(`Todas as ${MAX_RETRIES + 1} tentativas falharam. Último erro: ${lastError}`);
-      
-      // Em caso de erro após todas as tentativas, assumir que o pagamento ainda está pendente
       return {
         status: 'PENDING' as PaymentStatus,
-        error: `Não foi possível verificar o status após ${MAX_RETRIES + 1} tentativas: ${lastError}`,
+        error: `Failed to check status after ${MAX_RETRIES + 1} attempts: ${lastError}`,
         source: 'client_fallback'
       };
     })();
     
-    // Armazenar a promessa para evitar chamadas duplicadas
+    // Store promise to prevent duplicates
     pendingRequests[paymentId] = requestPromise;
     
-    // Definir um timeout para limpar a promessa do cache após a conclusão
+    // Get result
     const result = await requestPromise;
     
-    // Remover a requisição pendente após conclusão
+    // Remove from pending after delay
     setTimeout(() => {
       delete pendingRequests[paymentId];
-    }, 2000); // Mantém no cache por 2 segundos para evitar chamadas em sequência
+    }, 2000);
     
     return result;
-  } catch (error: unknown) {
-    const thrownError = error as Error;
-    console.error('Erro ao verificar status do pagamento:', thrownError);
     
-    // Em caso de erro, assumir que o pagamento ainda está pendente
+  } catch (error) {
+    console.error('Error checking payment status:', error);
     return {
       status: 'PENDING' as PaymentStatus,
-      error: thrownError.message || 'Erro desconhecido',
-      source: 'exception_handler' 
+      error: error instanceof Error ? error.message : 'Unknown error',
+      source: 'exception_handler'
     };
   }
 };

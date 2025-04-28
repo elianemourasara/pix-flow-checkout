@@ -1,62 +1,59 @@
 
-import { Handler, HandlerEvent } from '@netlify/functions';
+import { Handler } from '@netlify/functions';
 import { supabase } from './asaas/supabase-client';
-import { getAsaasApiKey, getAsaasApiBaseUrl } from './asaas/get-asaas-api-key';
+import { getAsaasApiKey } from './asaas/get-asaas-api-key';
 
-export const handler: Handler = async (event: HandlerEvent) => {
-  // Headers padrão para CORS
+export const handler: Handler = async (event) => {
+  // CORS headers
   const headers = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     'Content-Type': 'application/json',
     'Cache-Control': 'no-cache, no-store, must-revalidate'
   };
 
-  // Responder à solicitação OPTIONS para CORS preflight
+  // Handle CORS preflight
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 204,
-      headers,
-      body: ''
+      headers
     };
   }
 
-  // Verificar se o método é GET
+  // Verify method
   if (event.httpMethod !== 'GET') {
     return {
       statusCode: 405,
       headers,
-      body: JSON.stringify({ error: 'Método não permitido. Use GET.' }),
+      body: JSON.stringify({ error: 'Method not allowed. Use GET.' })
     };
   }
 
-  // Obter o ID do pagamento da query string
+  // Get payment ID
   const paymentId = event.queryStringParameters?.paymentId;
-  
-  console.log(`Verificando status para paymentId: ${paymentId}`);
+  console.log(`Checking status for paymentId: ${paymentId}`);
   
   if (!paymentId) {
-    console.log('ID do pagamento não fornecido na query.');
     return {
       statusCode: 400,
       headers,
-      body: JSON.stringify({ error: 'ID do pagamento não fornecido.', status: 'ERROR' }),
+      body: JSON.stringify({ 
+        error: 'Payment ID not provided.',
+        status: 'ERROR'
+      })
     };
   }
 
   try {
-    // Primeiro, verificar diretamente na tabela orders
-    console.log('Verificando status na tabela orders...');
-    
+    // First check orders table
     const { data: orderData, error: orderError } = await supabase
       .from('orders')
       .select('status, updated_at')
       .eq('asaas_payment_id', paymentId)
-      .single();
+      .maybeSingle();
     
     if (!orderError && orderData) {
-      console.log(`Status encontrado na tabela orders: ${orderData.status}`);
-      
+      console.log(`Found payment status in orders table: ${orderData.status}`);
       return {
         statusCode: 200,
         headers,
@@ -65,22 +62,19 @@ export const handler: Handler = async (event: HandlerEvent) => {
           paymentId,
           updatedAt: orderData.updated_at,
           source: 'orders_table'
-        }),
+        })
       };
-    } else {
-      console.log('Nenhum resultado encontrado na tabela orders, verificando tabela asaas_payments...');
     }
     
-    // Não encontrado em orders, verificar em asaas_payments
+    // Check asaas_payments table
     const { data: paymentData, error: paymentError } = await supabase
       .from('asaas_payments')
       .select('status, updated_at')
       .eq('payment_id', paymentId)
-      .single();
+      .maybeSingle();
     
     if (!paymentError && paymentData) {
-      console.log(`Status encontrado na tabela asaas_payments: ${paymentData.status}`);
-      
+      console.log(`Found payment status in asaas_payments table: ${paymentData.status}`);
       return {
         statusCode: 200,
         headers,
@@ -89,42 +83,35 @@ export const handler: Handler = async (event: HandlerEvent) => {
           paymentId,
           updatedAt: paymentData.updated_at,
           source: 'asaas_payments_table'
-        }),
+        })
       };
-    } else {
-      console.log('Pagamento não encontrado em nenhuma tabela local.');
     }
 
-    // Se não encontrou nas tabelas locais, consultar diretamente na API do Asaas
+    // If not found locally, check Asaas API
     try {
-      console.log('Tentando obter status diretamente da API do Asaas...');
+      console.log('Attempting to get status directly from Asaas API...');
       
-      // Obter a configuração do Asaas
+      // Get Asaas configuration
       const { data: asaasConfig, error: configError } = await supabase
         .from('asaas_config')
         .select('*')
         .limit(1)
-        .single();
+        .maybeSingle();
         
       if (configError) {
-        console.error('Erro ao buscar configuração do Asaas:', configError);
-        throw new Error('Erro ao buscar configuração do gateway de pagamento');
+        throw new Error('Error fetching payment gateway configuration');
       }
       
-      // Determinar qual chave API usar
-      const usesSandbox = asaasConfig.sandbox === true;
+      // Determine API key
+      const usesSandbox = asaasConfig?.sandbox === true;
       const apiKey = await getAsaasApiKey(usesSandbox);
-      const apiBaseUrl = getAsaasApiBaseUrl(usesSandbox);
-      
-      console.log(`Usando ambiente: ${usesSandbox ? 'Sandbox' : 'Produção'}`);
       
       if (!apiKey) {
-        console.error(`Chave de API ${usesSandbox ? 'sandbox' : 'produção'} não configurada`);
-        throw new Error(`Chave de API ${usesSandbox ? 'sandbox' : 'produção'} não configurada`);
+        throw new Error(`${usesSandbox ? 'Sandbox' : 'Production'} API key not configured`);
       }
       
-      // Consultar o status na API do Asaas
-      const response = await fetch(`${apiBaseUrl}/payments/${paymentId}`, {
+      // Query Asaas API
+      const response = await fetch(`https://${usesSandbox ? 'sandbox.' : ''}api.asaas.com/v3/payments/${paymentId}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -133,74 +120,53 @@ export const handler: Handler = async (event: HandlerEvent) => {
       });
       
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Erro na API do Asaas: ${response.status} - ${errorText}`);
-        
-        // Mesmo com erro, retornar PENDING para não quebrar o fluxo do cliente
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify({
-            status: 'PENDING',
-            paymentId,
-            updatedAt: new Date().toISOString(),
-            source: 'fallback_pending',
-            apiError: `${response.status}: ${errorText.substring(0, 100)}`
-          }),
-        };
+        throw new Error(`Asaas API error: ${response.status}`);
       }
       
       const asaasData = await response.json();
-      const asaasStatus = asaasData.status;
       
-      console.log(`Status da API do Asaas: ${asaasStatus}`);
-      
-      // Atualizar o status nas tabelas locais
+      // Update local tables
       try {
         await supabase
           .from('asaas_payments')
           .upsert({
             payment_id: paymentId,
-            status: asaasStatus,
+            status: asaasData.status,
             updated_at: new Date().toISOString()
           });
           
-        // Tentar atualizar orders se houver vínculo
         const { data: orderInfo } = await supabase
           .from('orders')
           .select('id')
           .eq('asaas_payment_id', paymentId)
-          .single();
+          .maybeSingle();
           
         if (orderInfo?.id) {
           await supabase
             .from('orders')
             .update({ 
-              status: asaasStatus,
+              status: asaasData.status,
               updated_at: new Date().toISOString()
             })
             .eq('id', orderInfo.id);
         }
       } catch (updateError) {
-        console.error('Erro ao atualizar status local:', updateError);
-        // Continuar mesmo com erro de atualização
+        console.error('Error updating local status:', updateError);
       }
       
       return {
         statusCode: 200,
         headers,
         body: JSON.stringify({
-          status: asaasStatus,
+          status: asaasData.status,
           paymentId,
           updatedAt: asaasData.dateCreated || new Date().toISOString(),
           source: 'asaas_api'
-        }),
+        })
       };
       
     } catch (asaasError) {
-      console.error('Erro ao consultar API Asaas:', asaasError);
-      
-      // Retornar PENDING em caso de erro na API para não quebrar o fluxo
+      console.error('Error querying Asaas API:', asaasError);
       return {
         statusCode: 200,
         headers,
@@ -209,27 +175,12 @@ export const handler: Handler = async (event: HandlerEvent) => {
           paymentId,
           updatedAt: new Date().toISOString(),
           source: 'error_fallback',
-          error: asaasError instanceof Error ? asaasError.message : 'Erro ao consultar API externa'
-        }),
+          error: asaasError instanceof Error ? asaasError.message : 'Error querying external API'
+        })
       };
     }
-    
-    // Se chegou aqui, não encontrou em nenhum lugar, retornar PENDING
-    console.log('Nenhum dado de pagamento encontrado, retornando status padrão PENDING');
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        status: 'PENDING',
-        paymentId,
-        updatedAt: new Date().toISOString(),
-        source: 'default_pending'
-      }),
-    };
   } catch (error) {
-    console.error('Erro geral na função check-payment-status:', error);
-    
-    // Mesmo com erro interno, retornar 200 com status PENDING para não quebrar o fluxo do cliente
+    console.error('General error in check-payment-status:', error);
     return {
       statusCode: 200,
       headers,
@@ -238,8 +189,8 @@ export const handler: Handler = async (event: HandlerEvent) => {
         paymentId,
         updatedAt: new Date().toISOString(),
         source: 'error_handler',
-        errorMessage: error instanceof Error ? error.message : 'Erro interno no servidor'
-      }),
+        error: error instanceof Error ? error.message : 'Internal server error'
+      })
     };
   }
 };

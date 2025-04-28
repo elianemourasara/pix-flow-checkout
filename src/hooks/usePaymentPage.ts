@@ -18,8 +18,12 @@ export const usePaymentPage = () => {
   const [order, setOrder] = useState<Order | null>(null);
   const [error, setError] = useState<string | null>(null);
   
-  // Use the extracted hooks
-  const { paymentStatus, isCheckingStatus, refreshStatus } = usePixStatusTracker(paymentData, order);
+  // Use the tracker hook with proper types
+  const { status: paymentStatus, isLoading: isCheckingStatus, refreshStatus } = usePixStatusTracker({
+    paymentId: paymentData?.paymentId || null
+  });
+  
+  // Track payment status and pixels
   usePaymentPixelTracker(order, paymentData, paymentStatus);
   
   useEffect(() => {
