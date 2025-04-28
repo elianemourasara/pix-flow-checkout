@@ -33,7 +33,14 @@ const handler: Handler = async (event: HandlerEvent) => {
 
   try {
     const requestData: AsaasCustomerRequest = JSON.parse(event.body || '{}');
-    console.log('Solicitação recebida:', requestData);
+    console.log('Solicitação recebida:', {
+      name: requestData.name ? requestData.name.substring(0, 10) + '...' : 'não fornecido',
+      email: requestData.email || 'não fornecido',
+      cpfCnpjPartial: requestData.cpfCnpj ? `${requestData.cpfCnpj.substring(0, 4)}...` : 'não fornecido',
+      phone: requestData.phone || 'não fornecido',
+      orderId: requestData.orderId || 'não fornecido',
+      value: requestData.value
+    });
 
     // Validation
     const validationError = validateAsaasCustomerRequest(requestData);
@@ -85,12 +92,24 @@ const handler: Handler = async (event: HandlerEvent) => {
     };
   } catch (error) {
     console.error('Erro no processamento:', error);
+    
+    // Extrair detalhes do erro para logging mais detalhado
+    const errorDetails = {
+      message: error.message || 'Erro desconhecido',
+      name: error.name || 'Error',
+      stack: error.stack ? error.stack.substring(0, 300) + '...' : 'No stack trace',
+      details: error.details || null
+    };
+    
+    console.error('Detalhes do erro:', errorDetails);
+    
     return {
       statusCode: 500,
       headers: corsHeaders,
       body: JSON.stringify({ 
         error: 'Falha no processamento do pagamento',
-        details: error.message
+        details: error.message,
+        errorName: error.name
       }),
     };
   }

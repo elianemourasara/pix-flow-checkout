@@ -24,8 +24,9 @@ export const checkPaymentStatus = async (paymentId: string): Promise<PaymentStat
       return existingRequest;
     }
     
+    // Garantir que a URL esteja usando o caminho correto para a função Netlify
     // Add timestamp to prevent browser caching
-    const url = `/api/check-payment-status?paymentId=${paymentId}&t=${Date.now()}`;
+    const url = `/.netlify/functions/check-payment-status?paymentId=${paymentId}&t=${Date.now()}`;
     
     // Create request promise
     const requestPromise = async () => {
@@ -34,6 +35,7 @@ export const checkPaymentStatus = async (paymentId: string): Promise<PaymentStat
       
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         try {
+          console.log(`Attempt ${attempt + 1}: Checking status for payment ID ${paymentId}`);
           const response = await fetch(url, {
             headers: {
               'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -47,6 +49,9 @@ export const checkPaymentStatus = async (paymentId: string): Promise<PaymentStat
           }
           
           const data = await response.json();
+          
+          // Log response for debugging
+          console.log(`Status check response:`, data);
           
           // Validate status
           if (!data.status || typeof data.status !== 'string') {
@@ -163,9 +168,10 @@ export const generatePixPayment = async (billingData: any) => {
     formattedData.requestId = requestId;
     console.log(`Request ID único gerado para evitar duplicação: ${requestId}`);
     
+    // Usar o caminho correto para a função Netlify
     console.log('Making API request to create-asaas-customer endpoint');
     
-    const response = await fetch('/api/create-asaas-customer', {
+    const response = await fetch('/.netlify/functions/create-asaas-customer', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
