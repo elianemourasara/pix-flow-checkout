@@ -3,20 +3,20 @@ import { Handler } from '@netlify/functions';
 import { supabase } from './asaas/supabase-client';
 import { getAsaasApiKey } from './asaas/get-asaas-api-key';
 
-export const handler: Handler = async (event) => {
-  // CORS headers
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Content-Type': 'application/json',
-    'Cache-Control': 'no-cache, no-store, must-revalidate'
-  };
+// Define CORS headers
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Content-Type': 'application/json',
+  'Cache-Control': 'no-cache, no-store, must-revalidate'
+};
 
+export const handler: Handler = async (event) => {
   // Handle CORS preflight
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 204,
-      headers
+      headers: corsHeaders
     };
   }
 
@@ -24,7 +24,7 @@ export const handler: Handler = async (event) => {
   if (event.httpMethod !== 'GET') {
     return {
       statusCode: 405,
-      headers,
+      headers: corsHeaders,
       body: JSON.stringify({ error: 'Method not allowed. Use GET.' })
     };
   }
@@ -36,7 +36,7 @@ export const handler: Handler = async (event) => {
   if (!paymentId) {
     return {
       statusCode: 400,
-      headers,
+      headers: corsHeaders,
       body: JSON.stringify({ 
         error: 'Payment ID not provided.',
         status: 'ERROR'
@@ -45,7 +45,7 @@ export const handler: Handler = async (event) => {
   }
 
   try {
-    // First check orders table
+    // Check orders table first
     const { data: orderData, error: orderError } = await supabase
       .from('orders')
       .select('status, updated_at')
@@ -56,7 +56,7 @@ export const handler: Handler = async (event) => {
       console.log(`Found payment status in orders table: ${orderData.status}`);
       return {
         statusCode: 200,
-        headers,
+        headers: corsHeaders,
         body: JSON.stringify({
           status: orderData.status,
           paymentId,
@@ -77,7 +77,7 @@ export const handler: Handler = async (event) => {
       console.log(`Found payment status in asaas_payments table: ${paymentData.status}`);
       return {
         statusCode: 200,
-        headers,
+        headers: corsHeaders,
         body: JSON.stringify({
           status: paymentData.status,
           paymentId,
@@ -102,7 +102,7 @@ export const handler: Handler = async (event) => {
         throw new Error('Error fetching payment gateway configuration');
       }
       
-      // Determine API key
+      // Get API key with sandbox flag
       const usesSandbox = asaasConfig?.sandbox === true;
       const apiKey = await getAsaasApiKey(usesSandbox);
       
@@ -112,7 +112,6 @@ export const handler: Handler = async (event) => {
       
       // Query Asaas API
       const response = await fetch(`https://${usesSandbox ? 'sandbox.' : ''}api.asaas.com/v3/payments/${paymentId}`, {
-        method: 'GET',
         headers: {
           'Content-Type': 'application/json',
           'access_token': apiKey
@@ -156,7 +155,7 @@ export const handler: Handler = async (event) => {
       
       return {
         statusCode: 200,
-        headers,
+        headers: corsHeaders,
         body: JSON.stringify({
           status: asaasData.status,
           paymentId,
@@ -169,7 +168,7 @@ export const handler: Handler = async (event) => {
       console.error('Error querying Asaas API:', asaasError);
       return {
         statusCode: 200,
-        headers,
+        headers: corsHeaders,
         body: JSON.stringify({
           status: 'PENDING',
           paymentId,
@@ -183,7 +182,7 @@ export const handler: Handler = async (event) => {
     console.error('General error in check-payment-status:', error);
     return {
       statusCode: 200,
-      headers,
+      headers: corsHeaders,
       body: JSON.stringify({
         status: 'PENDING',
         paymentId,

@@ -6,38 +6,34 @@ interface PaymentStatusResponse {
   source?: string;
 }
 
-// Controle de requisições para evitar chamadas duplicadas
+// Control pending requests to avoid duplicates
 const pendingRequests: Record<string, Promise<PaymentStatus | PaymentStatusResponse>> = {};
 
 /**
- * Verifica o status de um pagamento Asaas
- * @param paymentId ID do pagamento no Asaas
- * @returns Status atual do pagamento
+ * Check Asaas payment status
  */
 export const checkPaymentStatus = async (paymentId: string): Promise<PaymentStatus | PaymentStatusResponse> => {
   try {
-    console.log(`Verificando status do pagamento: ${paymentId}`);
+    console.log(`Checking payment status: ${paymentId}`);
     
-    // Verificar se já existe uma requisição pendente para este pagamento
-    if (pendingRequests[paymentId]) {
-      console.log(`Requisição já em andamento para ${paymentId}, reaproveitando...`);
-      return await pendingRequests[paymentId];
+    // Check for existing pending request
+    const existingRequest = pendingRequests[paymentId];
+    if (existingRequest) {
+      console.log(`Reusing existing request for ${paymentId}`);
+      return existingRequest;
     }
     
-    // Adicionar parâmetro para evitar cache do navegador
+    // Add timestamp to prevent browser caching
     const url = `/api/check-payment-status?paymentId=${paymentId}&t=${Date.now()}`;
     
-    // Criar a promessa da requisição
-    const requestPromise = (async () => {
-      // Implementar mecanismo de retry para lidar com falhas temporárias
+    // Create request promise
+    const requestPromise = async () => {
       const MAX_RETRIES = 2;
-      let retries = 0;
       let lastError = null;
       
-      while (retries <= MAX_RETRIES) {
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         try {
           const response = await fetch(url, {
-            method: 'GET',
             headers: {
               'Cache-Control': 'no-cache, no-store, must-revalidate',
               'Pragma': 'no-cache',
@@ -51,48 +47,41 @@ export const checkPaymentStatus = async (paymentId: string): Promise<PaymentStat
           
           const data = await response.json();
           
-          // Se não tiver status ou o status não for válido, assumir PENDING
+          // Validate status
           if (!data.status || typeof data.status !== 'string') {
-            console.warn('Invalid status received from API:', data);
+            console.warn('Invalid status received:', data);
             return 'PENDING' as PaymentStatus;
           }
           
-          // Normalize status
-          let normalizedStatus: PaymentStatus = data.status as PaymentStatus;
-          if (normalizedStatus === 'RECEIVED') {
-            console.log('Remapeando status RECEIVED para CONFIRMED');
-            normalizedStatus = 'CONFIRMED';
-          }
-          
-          return normalizedStatus;
+          // Normalize RECEIVED status to CONFIRMED
+          return data.status === 'RECEIVED' ? 'CONFIRMED' as PaymentStatus : data.status as PaymentStatus;
           
         } catch (error) {
           lastError = error instanceof Error ? error.message : 'Unknown error';
-          console.warn(`Attempt ${retries + 1} failed: ${lastError}`);
-          retries++;
+          console.warn(`Attempt ${attempt + 1} failed: ${lastError}`);
           
-          if (retries <= MAX_RETRIES) {
-            await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(2, retries)));
+          if (attempt < MAX_RETRIES) {
+            await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(2, attempt)));
           }
         }
       }
       
-      // After all retries failed
-      console.error(`Todas as ${MAX_RETRIES + 1} tentativas falharam. Último erro: ${lastError}`);
+      console.error(`All ${MAX_RETRIES + 1} attempts failed. Last error: ${lastError}`);
       return {
         status: 'PENDING' as PaymentStatus,
-        error: `Failed to check status after ${MAX_RETRIES + 1} attempts: ${lastError}`,
+        error: `Failed after ${MAX_RETRIES + 1} attempts: ${lastError}`,
         source: 'client_fallback'
       };
-    })();
+    };
     
-    // Store promise to prevent duplicates
-    pendingRequests[paymentId] = requestPromise;
+    // Store and execute promise
+    const promise = requestPromise();
+    pendingRequests[paymentId] = promise;
     
     // Get result
-    const result = await requestPromise;
+    const result = await promise;
     
-    // Remove from pending after delay
+    // Clean up after delay
     setTimeout(() => {
       delete pendingRequests[paymentId];
     }, 2000);
@@ -110,9 +99,9 @@ export const checkPaymentStatus = async (paymentId: string): Promise<PaymentStat
 };
 
 /**
- * Gera um pagamento PIX no Asaas
- * @param billingData Dados do cliente e do pagamento
- * @returns Dados do pagamento PIX gerado
+ * Generates a PIX payment in Asaas
+ * @param billingData Client and payment data
+ * @returns Generated PIX payment data
  */
 export const generatePixPayment = async (billingData: any) => {
   try {
@@ -158,7 +147,7 @@ export const generatePixPayment = async (billingData: any) => {
       throw new Error(`Campos obrigatórios faltando: ${missingFields.join(', ')}`);
     }
     
-    // Adicionar um ID único para evitar solicitações duplicadas
+    // Add a unique ID to avoid duplicate requests
     const requestId = `${formattedData.orderId}-${Date.now()}`;
     formattedData.requestId = requestId;
     console.log(`Request ID único gerado para evitar duplicação: ${requestId}`);
