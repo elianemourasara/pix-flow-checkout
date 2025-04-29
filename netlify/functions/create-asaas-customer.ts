@@ -1,4 +1,5 @@
-// /netlify/functions/create-asaas-customer.ts (recriado com logs completos)
+
+// /netlify/functions/create-asaas-customer.ts (com validação aprimorada)
 
 import { Handler, HandlerEvent } from '@netlify/functions';
 import { supabase } from './asaas/supabase-client';
@@ -6,8 +7,7 @@ import { AsaasCustomerRequest } from './asaas/types';
 import { validateAsaasCustomerRequest } from './asaas/validation';
 import { processPaymentFlow } from './asaas/payment-processor';
 import { getAsaasApiKey } from './asaas/get-asaas-api-key';
-import { getAsaasApiBaseUrl } from './asaas/get-asaas-api-base-url'; // novo caminho correto
-
+import { getAsaasApiBaseUrl } from './asaas/get-asaas-api-base-url'; // importação correta
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -17,6 +17,10 @@ const corsHeaders = {
 };
 
 const handler: Handler = async (event: HandlerEvent) => {
+  console.log('[create-asaas-customer] -------- Iniciando requisição --------');
+  console.log(`[create-asaas-customer] Método: ${event.httpMethod}`);
+  console.log(`[create-asaas-customer] Ambiente: USE_ASAAS_PRODUCTION=${process.env.USE_ASAAS_PRODUCTION}`);
+  
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 204,
@@ -34,11 +38,18 @@ const handler: Handler = async (event: HandlerEvent) => {
 
   try {
     const requestData: AsaasCustomerRequest = JSON.parse(event.body || '{}');
-    console.log('Solicitação recebida:', requestData);
+    console.log('[create-asaas-customer] Dados recebidos (parcial):', {
+      name: requestData.name,
+      cpfCnpjPartial: requestData.cpfCnpj ? `${requestData.cpfCnpj.substring(0, 4)}...` : 'não fornecido',
+      email: requestData.email,
+      phone: requestData.phone,
+      orderId: requestData.orderId,
+      value: requestData.value
+    });
 
     const validationError = validateAsaasCustomerRequest(requestData);
     if (validationError) {
-      console.error('Erro de validação:', validationError);
+      console.error('[create-asaas-customer] Erro de validação:', validationError);
       return {
         statusCode: 400,
         headers: corsHeaders,
@@ -46,16 +57,20 @@ const handler: Handler = async (event: HandlerEvent) => {
       };
     }
 
+    // Verificar variáveis de ambiente e determinar ambiente correto
     const useProduction = process.env.USE_ASAAS_PRODUCTION === 'true';
     const isSandbox = !useProduction;
 
-    const apiBaseUrl = getAsaasApiBaseUrl(isSandbox);
-    console.log(`[INFO] Ambiente detectado: ${isSandbox ? 'Sandbox' : 'Produção'}`);
-    console.log(`[INFO] API Base URL: ${apiBaseUrl}`);
+    console.log(`[create-asaas-customer] Modo de operação: ${useProduction ? 'PRODUÇÃO' : 'SANDBOX'}`);
 
+    // Obter URL base da API
+    const apiBaseUrl = getAsaasApiBaseUrl(isSandbox);
+    console.log(`[create-asaas-customer] API Base URL: ${apiBaseUrl}`);
+
+    // Obter chave API com detalhes expandidos
     const apiKey = await getAsaasApiKey(isSandbox);
     if (!apiKey) {
-      console.error(`[ERRO] Nenhuma chave API ${isSandbox ? 'sandbox' : 'produção'} configurada.`);
+      console.error(`[create-asaas-customer] ERRO CRÍTICO: Nenhuma chave API ${isSandbox ? 'sandbox' : 'produção'} configurada.`);
       return {
         statusCode: 500,
         headers: corsHeaders,
@@ -63,8 +78,20 @@ const handler: Handler = async (event: HandlerEvent) => {
       };
     }
 
-    console.log(`[INFO] Chave API obtida: ${apiKey.substring(0, 8)}...`);
-    console.log('[INFO] Enviando para processPaymentFlow...');
+    // Validar a chave API antes de prosseguir
+    console.log(`[create-asaas-customer] Chave API obtida: ${apiKey.substring(0, 8)}...`);
+    console.log(`[create-asaas-customer] Comprimento da chave: ${apiKey.length} caracteres`);
+    
+    // Verificar se a chave contém espaços ou caracteres problemáticos
+    if (apiKey.includes(' ')) {
+      console.warn('[create-asaas-customer] ALERTA: A chave API contém espaços, o que pode causar falhas de autenticação');
+    }
+
+    // Exibe o header de autorização formatado (primeiros caracteres apenas)
+    const authHeader = `Bearer ${apiKey}`;
+    console.log(`[create-asaas-customer] Authorization header (formato): ${authHeader.substring(0, 15)}...`);
+
+    console.log('[create-asaas-customer] Enviando para processPaymentFlow...');
 
     const result = await processPaymentFlow(
       requestData,
@@ -73,7 +100,7 @@ const handler: Handler = async (event: HandlerEvent) => {
       apiBaseUrl
     );
 
-    console.log('[SUCESSO] Pagamento criado com sucesso:', result);
+    console.log('[create-asaas-customer] Pagamento processado com sucesso:', result);
 
     return {
       statusCode: 200,
@@ -81,7 +108,7 @@ const handler: Handler = async (event: HandlerEvent) => {
       body: JSON.stringify(result),
     };
   } catch (error: any) {
-    console.error('[FATAL] Erro no processamento:', error);
+    console.error('[create-asaas-customer] ERRO CRÍTICO:', error);
 
     const errorDetails = {
       message: error.message || 'Erro desconhecido',
@@ -90,7 +117,7 @@ const handler: Handler = async (event: HandlerEvent) => {
       details: error.details || null
     };
 
-    console.error('[FATAL] Detalhes do erro:', errorDetails);
+    console.error('[create-asaas-customer] Detalhes do erro:', errorDetails);
 
     return {
       statusCode: 500,

@@ -1,3 +1,4 @@
+
 import { 
   AsaasCustomerRequest, 
   AsaasCustomerResponse, 
@@ -24,7 +25,13 @@ export async function createAsaasCustomer(
 
   try {
     const endpoint = `${apiUrl}/customers`;
-    console.log(`Enviando requisição para ${endpoint}`);
+    console.log(`[createAsaasCustomer] Verificando parâmetros antes da requisição:`);
+    console.log(`[createAsaasCustomer] URL completa: ${endpoint}`);
+    console.log(`[createAsaasCustomer] Nome do cliente: ${customerData.name}`);
+    console.log(`[createAsaasCustomer] Email: ${customerData.email}`);
+    console.log(`[createAsaasCustomer] CPF/CNPJ (primeiros dígitos): ${customerData.cpfCnpj.substring(0, 4)}...`);
+    console.log(`[createAsaasCustomer] Primeiros caracteres da API key: ${apiKey.substring(0, 8)}...`);
+    console.log(`[createAsaasCustomer] Comprimento da API key: ${apiKey.length} caracteres`);
 
     if (!apiKey) {
       throw new Error('Chave API do Asaas não foi fornecida');
@@ -34,18 +41,30 @@ export async function createAsaasCustomer(
       throw new Error('Nome ou CPF/CNPJ do cliente não foi fornecido');
     }
 
+    // Verifica se a chave contém caracteres inválidos ou espaços acidentais
+    if (apiKey.includes(' ')) {
+      console.error('[createAsaasCustomer] ALERTA: A chave API contém espaços, o que pode causar falha de autenticação');
+    }
+
+    // Exibe o header de autorização formatado (primeiros caracteres apenas)
+    const authHeader = `Bearer ${apiKey}`;
+    console.log(`[createAsaasCustomer] Authorization header (formato): ${authHeader.substring(0, 15)}...`);
+
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}` // ✅ CORREÇÃO AQUI
+        'Authorization': authHeader
       },
       body: JSON.stringify(customerData)
     });
 
     if (!response.ok) {
       let errorText = await response.text();
-      console.error('Resposta de erro completa:', errorText);
+      console.error('[createAsaasCustomer] Resposta de erro completa:', errorText);
+      console.error('[createAsaasCustomer] Status HTTP:', response.status);
+      console.error('[createAsaasCustomer] Status Text:', response.statusText);
+      console.error('[createAsaasCustomer] Headers da resposta:', JSON.stringify(Object.fromEntries([...response.headers]), null, 2));
 
       try {
         const errorData = JSON.parse(errorText);
@@ -56,10 +75,10 @@ export async function createAsaasCustomer(
     }
 
     const responseData = await response.json();
-    console.log('Cliente criado com sucesso:', responseData.id);
+    console.log('[createAsaasCustomer] Cliente criado com sucesso:', responseData.id);
     return responseData;
   } catch (error) {
-    console.error('Erro ao criar cliente:', error);
+    console.error('[createAsaasCustomer] Erro ao criar cliente:', error);
     throw error;
   }
 }
@@ -87,7 +106,14 @@ export async function createAsaasPayment(
 
   try {
     const endpoint = `${apiUrl}/payments`;
-    console.log(`Enviando requisição para ${endpoint}`);
+    console.log(`[createAsaasPayment] Enviando requisição para ${endpoint}`);
+    console.log(`[createAsaasPayment] Primeiros caracteres da API key: ${apiKey.substring(0, 8)}...`);
+    console.log(`[createAsaasPayment] Dados do pagamento:`, {
+      customer_id: customerId,
+      value: value,
+      description: description,
+      externalReference: externalReference
+    });
 
     if (!apiKey) {
       throw new Error('Chave API do Asaas não foi fornecida');
@@ -97,14 +123,16 @@ export async function createAsaasPayment(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}` // ✅ CORREÇÃO AQUI
+        'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify(paymentData)
     });
 
     if (!response.ok) {
       let errorText = await response.text();
-      console.error('Resposta de erro completa (pagamento):', errorText);
+      console.error('[createAsaasPayment] Resposta de erro completa (pagamento):', errorText);
+      console.error('[createAsaasPayment] Status HTTP:', response.status);
+      console.error('[createAsaasPayment] Status Text:', response.statusText);
 
       try {
         const errorData = JSON.parse(errorText);
@@ -115,10 +143,10 @@ export async function createAsaasPayment(
     }
 
     const responseData = await response.json();
-    console.log('Pagamento criado com sucesso:', responseData.id);
+    console.log('[createAsaasPayment] Pagamento criado com sucesso:', responseData.id);
     return responseData;
   } catch (error) {
-    console.error('Erro ao criar pagamento:', error);
+    console.error('[createAsaasPayment] Erro ao criar pagamento:', error);
     throw error;
   }
 }
@@ -130,7 +158,9 @@ export async function getAsaasPixQrCode(
 ): Promise<AsaasPixQrCodeResponse> {
   try {
     const endpoint = `${apiUrl}/payments/${paymentId}/pixQrCode`;
-    console.log(`Requesting QR code for payment ID: ${paymentId}`);
+    console.log(`[getAsaasPixQrCode] Requesting QR code for payment ID: ${paymentId}`);
+    console.log(`[getAsaasPixQrCode] URL completa: ${endpoint}`);
+    console.log(`[getAsaasPixQrCode] Primeiros caracteres da API key: ${apiKey.substring(0, 8)}...`);
 
     if (!apiKey) {
       throw new Error('Chave API do Asaas não foi fornecida');
@@ -140,13 +170,15 @@ export async function getAsaasPixQrCode(
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}` // ✅ CORREÇÃO AQUI
+        'Authorization': `Bearer ${apiKey}`
       }
     });
 
     if (!response.ok) {
       let errorText = await response.text();
-      console.error('Resposta de erro completa (QR Code):', errorText);
+      console.error('[getAsaasPixQrCode] Resposta de erro completa (QR Code):', errorText);
+      console.error('[getAsaasPixQrCode] Status HTTP:', response.status);
+      console.error('[getAsaasPixQrCode] Status Text:', response.statusText);
 
       try {
         const errorData = JSON.parse(errorText);
@@ -157,10 +189,10 @@ export async function getAsaasPixQrCode(
     }
 
     const data = await response.json();
-    console.log('QR code recebido com sucesso.');
+    console.log('[getAsaasPixQrCode] QR code recebido com sucesso.');
     return data;
   } catch (error) {
-    console.error('Erro ao buscar QR Code:', error);
+    console.error('[getAsaasPixQrCode] Erro ao buscar QR Code:', error);
     throw error;
   }
 }

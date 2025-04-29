@@ -35,7 +35,7 @@ export async function getAsaasApiKey(isSandboxParam?: boolean): Promise<string |
   // Caso contrário, usamos o parâmetro fornecido ou padrão para sandbox
   const isSandbox = useProductionEnv ? false : (isSandboxParam !== undefined ? isSandboxParam : true);
   
-  console.log(`[getAsaasApiKey] Ambiente forçado por USE_ASAAS_PRODUCTION=${useProductionEnv ? 'true' : 'false'}`);
+  console.log(`[getAsaasApiKey] Ambiente determinado pelo USE_ASAAS_PRODUCTION=${useProductionEnv ? 'true' : 'false'}`);
   console.log(`[getAsaasApiKey] Obtendo chave Asaas para ambiente ${isSandbox ? 'sandbox' : 'produção'}`);
   
   try {
@@ -45,6 +45,8 @@ export async function getAsaasApiKey(isSandboxParam?: boolean): Promise<string |
       const cachedKey = isSandbox ? keyCache.sandbox : keyCache.production;
       if (cachedKey) {
         console.log(`[getAsaasApiKey] Usando chave ${isSandbox ? 'sandbox' : 'produção'} do cache`);
+        // Exibir primeiros caracteres da chave para validação nos logs
+        console.log(`[getAsaasApiKey] Chave em cache (primeiros caracteres): ${cachedKey.substring(0, 8)}...`);
         return cachedKey;
       }
     }
@@ -60,8 +62,11 @@ export async function getAsaasApiKey(isSandboxParam?: boolean): Promise<string |
       .limit(1);
       
     if (!keyError && activeKeys && activeKeys.length > 0) {
+      // Exibir informações da chave para validação
       console.log(`[getAsaasApiKey] Chave obtida do sistema novo: ${activeKeys[0].key_name} (ID: ${activeKeys[0].id})`);
       console.log(`[getAsaasApiKey] Tipo da chave: ${isSandbox ? 'SANDBOX' : 'PRODUÇÃO'}`);
+      console.log(`[getAsaasApiKey] Primeiros caracteres da chave: ${activeKeys[0].api_key.substring(0, 8)}...`);
+      console.log(`[getAsaasApiKey] Comprimento da chave: ${activeKeys[0].api_key.length} caracteres`);
       
       // Atualizar cache
       if (isSandbox) {
@@ -111,6 +116,8 @@ export async function getAsaasApiKey(isSandboxParam?: boolean): Promise<string |
     }
     
     console.log(`[getAsaasApiKey] Chave obtida do sistema legado com sucesso (${isSandbox ? 'SANDBOX' : 'PRODUÇÃO'})`);
+    console.log(`[getAsaasApiKey] Primeiros caracteres da chave legada: ${legacyKey.substring(0, 8)}...`);
+    console.log(`[getAsaasApiKey] Comprimento da chave legada: ${legacyKey.length} caracteres`);
     
     // Atualizar cache
     if (isSandbox) {
@@ -125,27 +132,6 @@ export async function getAsaasApiKey(isSandboxParam?: boolean): Promise<string |
     console.error('[getAsaasApiKey] Erro ao obter chave API do Asaas:', error);
     return null;
   }
-}
-
-/**
- * Função para obter a URL base da API Asaas
- * Respeita a variável de ambiente USE_ASAAS_PRODUCTION
- */
-export function getAsaasApiBaseUrl(isSandboxParam?: boolean): string {
-  // A variável de ambiente tem precedência sobre o parâmetro
-  const useProductionEnv = process.env.USE_ASAAS_PRODUCTION === 'true';
-  const isSandbox = useProductionEnv ? false : (isSandboxParam !== undefined ? isSandboxParam : true);
-  
-  console.log(`[getAsaasApiBaseUrl] Usando URL ${isSandbox ? 'SANDBOX' : 'PRODUÇÃO'} (USE_ASAAS_PRODUCTION=${useProductionEnv ? 'true' : 'false'})`);
-  
-  // Correção das URLs
-  const sandboxUrl = 'https://sandbox.asaas.com/api/v3';
-  const productionUrl = 'https://api.asaas.com/api/v3';
-  
-  const url = isSandbox ? sandboxUrl : productionUrl;
-  console.log(`[getAsaasApiBaseUrl] URL da API selecionada: ${url}`);
-  
-  return url;
 }
 
 /**

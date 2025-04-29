@@ -78,3 +78,7 @@
 # Netlify Functions configuration
 [functions]
   node_bundler = "esbuild"
+  # Tempo limite mais longo para funções
+  included_files = ["netlify/functions/**"]
+  external_node_modules = ["encoding"]
+  timeout = 30

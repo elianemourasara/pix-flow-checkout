@@ -10,19 +10,30 @@ export async function processPaymentFlow(
   supabase: any,
   apiUrl: string
 ) {
-  console.log(`Iniciando fluxo de pagamento com API URL: ${apiUrl}`);
-  console.log(`Valor do pagamento: ${requestData.value}`);
+  console.log(`[processPaymentFlow] Iniciando fluxo de pagamento com API URL: ${apiUrl}`);
+  console.log(`[processPaymentFlow] Valor do pagamento: ${requestData.value}`);
+  console.log(`[processPaymentFlow] Primeiros caracteres da chave API: ${apiKey.substring(0, 8)}...`);
+  console.log(`[processPaymentFlow] Comprimento da chave API: ${apiKey.length} caracteres`);
   
   // Verificar se a chave API foi fornecida
   if (!apiKey) {
-    console.error('Chave API do Asaas não fornecida');
+    console.error('[processPaymentFlow] ERRO CRÍTICO: Chave API do Asaas não fornecida');
     throw new Error('Chave API do Asaas não configurada corretamente');
   }
   
   // Verificar se a URL da API foi fornecida
   if (!apiUrl) {
-    console.error('URL da API Asaas não fornecida');
+    console.error('[processPaymentFlow] ERRO CRÍTICO: URL da API Asaas não fornecida');
     throw new Error('URL da API Asaas não configurada corretamente');
+  }
+  
+  // Verificar formato da URL da API
+  const expectedProductionUrl = 'https://api.asaas.com/api/v3';
+  const expectedSandboxUrl = 'https://sandbox.asaas.com/api/v3';
+  
+  if (apiUrl !== expectedProductionUrl && apiUrl !== expectedSandboxUrl) {
+    console.error(`[processPaymentFlow] ALERTA: URL da API não corresponde aos padrões esperados: ${apiUrl}`);
+    console.error(`[processPaymentFlow] URLs esperadas: ${expectedProductionUrl} ou ${expectedSandboxUrl}`);
   }
   
   try {
@@ -34,18 +45,25 @@ export async function processPaymentFlow(
       
     // If temporary email is configured and enabled, use it instead of customer's email
     if (emailConfig?.use_temp_email && emailConfig?.temp_email) {
-      console.log('Using temporary email:', emailConfig.temp_email);
-      console.log('Original customer email:', requestData.email);
+      console.log('[processPaymentFlow] Using temporary email:', emailConfig.temp_email);
+      console.log('[processPaymentFlow] Original customer email:', requestData.email);
       requestData.email = emailConfig.temp_email;
     }
     
     // Validar todos os campos obrigatórios antes de continuar
     if (!requestData.name || !requestData.cpfCnpj || !requestData.orderId || !requestData.value) {
+      console.error('[processPaymentFlow] ERRO: Dados de cliente insuficientes');
+      console.error('[processPaymentFlow] Dados recebidos:', {
+        name: requestData.name ? 'Presente' : 'Ausente',
+        cpfCnpj: requestData.cpfCnpj ? 'Presente' : 'Ausente',
+        orderId: requestData.orderId ? 'Presente' : 'Ausente',
+        value: requestData.value ? 'Presente' : 'Ausente'
+      });
       throw new Error('Dados de cliente insuficientes para criação no Asaas. Verifique name, cpfCnpj, orderId e value.');
     }
     
     // Log completo dos dados de request para diagnóstico
-    console.log('Dados completos da requisição (sanitizados):', {
+    console.log('[processPaymentFlow] Dados completos da requisição (sanitizados):', {
       name: requestData.name,
       cpfCnpjPartial: requestData.cpfCnpj ? `${requestData.cpfCnpj.substring(0, 4)}...` : 'não fornecido',
       email: requestData.email,
@@ -55,18 +73,18 @@ export async function processPaymentFlow(
       description: requestData.description
     });
     
-    console.log(`Chamando API Asaas (${apiUrl}) para criar cliente...`);
+    console.log(`[processPaymentFlow] Chamando API Asaas (${apiUrl}) para criar cliente...`);
     
     // 1. Create customer in Asaas
     try {
-      console.log('Tentando criar cliente no Asaas...');
+      console.log('[processPaymentFlow] Tentando criar cliente no Asaas...');
       const customer = await createAsaasCustomer(requestData, apiKey, apiUrl);
-      console.log('Cliente criado no Asaas com sucesso:', customer);
+      console.log('[processPaymentFlow] Cliente criado no Asaas com sucesso:', customer);
       
       // 2. Create PIX payment
       const description = requestData.description || `Pedido #${requestData.orderId}`;
       
-      console.log('Tentando criar pagamento no Asaas...');
+      console.log('[processPaymentFlow] Tentando criar pagamento no Asaas...');
       const payment = await createAsaasPayment(
         customer.id, 
         requestData.value, 
@@ -75,12 +93,12 @@ export async function processPaymentFlow(
         apiKey,
         apiUrl
       );
-      console.log('Pagamento criado no Asaas:', payment);
+      console.log('[processPaymentFlow] Pagamento criado no Asaas:', payment);
       
       // 3. Get PIX QR Code
-      console.log('Obtendo QR Code para pagamento...');
+      console.log('[processPaymentFlow] Obtendo QR Code para pagamento...');
       const pixQrCode = await getAsaasPixQrCode(payment.id, apiKey, apiUrl);
-      console.log('QR Code PIX recebido:', {
+      console.log('[processPaymentFlow] QR Code PIX recebido:', {
         success: pixQrCode.success,
         payloadLength: pixQrCode.payload ? pixQrCode.payload.length : 0,
         encodedImageLength: pixQrCode.encodedImage ? pixQrCode.encodedImage.length : 0
@@ -99,7 +117,7 @@ export async function processPaymentFlow(
       };
       
       const saveResult = await savePaymentData(supabase, paymentData);
-      console.log('Dados salvos no Supabase:', saveResult);
+      console.log('[processPaymentFlow] Dados salvos no Supabase:', saveResult);
       
       // 5. Update order with Asaas payment ID
       await updateOrderAsaasPaymentId(supabase, requestData.orderId, payment.id);
@@ -118,12 +136,12 @@ export async function processPaymentFlow(
     } catch (error) {
       // Capturar e registrar erros específicos
       if (error.name === 'AsaasApiError') {
-        console.error('Erro da API Asaas:', error.message, error.details);
+        console.error('[processPaymentFlow] Erro da API Asaas:', error.message, error.details);
       }
       throw error;
     }
   } catch (error) {
-    console.error('Erro no processamento do pagamento:', error);
+    console.error('[processPaymentFlow] Erro no processamento do pagamento:', error);
     throw error;
   }
 }
