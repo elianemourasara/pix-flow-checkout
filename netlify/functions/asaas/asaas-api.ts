@@ -24,6 +24,13 @@ export async function createAsaasCustomer(
   };
 
   try {
+    // Sanitizar a apiKey antes de usar, removendo espaços
+    apiKey = apiKey ? apiKey.trim() : '';
+    
+    if (apiKey.includes(' ')) {
+      console.warn('[createAsaasCustomer] ALERTA: A chave API ainda contém espaços após trim()');
+    }
+    
     const endpoint = `${apiUrl}/customers`;
     console.log(`[createAsaasCustomer] Verificando parâmetros antes da requisição:`);
     console.log(`[createAsaasCustomer] URL completa: ${endpoint}`);
@@ -41,14 +48,12 @@ export async function createAsaasCustomer(
       throw new Error('Nome ou CPF/CNPJ do cliente não foi fornecido');
     }
 
-    // Verifica se a chave contém caracteres inválidos ou espaços acidentais
-    if (apiKey.includes(' ')) {
-      console.error('[createAsaasCustomer] ALERTA: A chave API contém espaços, o que pode causar falha de autenticação');
-    }
-
     // Exibe o header de autorização formatado (primeiros caracteres apenas)
     const authHeader = `Bearer ${apiKey}`;
     console.log(`[createAsaasCustomer] Authorization header (formato): ${authHeader.substring(0, 15)}...`);
+
+    // Teste de chave inválida - exibe caracteres especiais ou problemas
+    console.log(`[createAsaasCustomer] Caracteres especiais na chave? ${/[^\w\-\.]/.test(apiKey) ? 'SIM' : 'NÃO'}`);
 
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -58,6 +63,10 @@ export async function createAsaasCustomer(
       },
       body: JSON.stringify(customerData)
     });
+
+    // Exibir informações sobre a resposta HTTP
+    console.log(`[createAsaasCustomer] Status da resposta: ${response.status} ${response.statusText}`);
+    console.log(`[createAsaasCustomer] Headers da resposta: ${JSON.stringify(Object.fromEntries([...response.headers]))}`);
 
     if (!response.ok) {
       let errorText = await response.text();
@@ -70,7 +79,7 @@ export async function createAsaasCustomer(
         const errorData = JSON.parse(errorText);
         throw new AsaasApiError(`Erro ao criar cliente no Asaas: ${errorData.message || response.statusText}`, errorData);
       } catch (parseError) {
-        throw new AsaasApiError(`Erro ao criar cliente no Asaas: Status ${response.status} - ${errorText}`, { raw: errorText });
+        throw new AsaasApiError(`Erro ao criar cliente no Asaas: Status ${response.status} - ${errorText || response.statusText}`, { raw: errorText });
       }
     }
 

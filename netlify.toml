@@ -82,3 +82,7 @@
   included_files = ["netlify/functions/**"]
   external_node_modules = ["encoding"]
   timeout = 30
+
+# Configuração específica para funções que precisam de mais tempo
+[functions.create-asaas-customer]
+  timeout = 60

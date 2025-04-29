@@ -7,7 +7,7 @@ import { AsaasCustomerRequest } from './asaas/types';
 import { validateAsaasCustomerRequest } from './asaas/validation';
 import { processPaymentFlow } from './asaas/payment-processor';
 import { getAsaasApiKey } from './asaas/get-asaas-api-key';
-import { getAsaasApiBaseUrl } from './asaas/get-asaas-api-base-url'; // importação correta
+import { getAsaasApiBaseUrl } from './asaas/get-asaas-api-base-url';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,6 +20,7 @@ const handler: Handler = async (event: HandlerEvent) => {
   console.log('[create-asaas-customer] -------- Iniciando requisição --------');
   console.log(`[create-asaas-customer] Método: ${event.httpMethod}`);
   console.log(`[create-asaas-customer] Ambiente: USE_ASAAS_PRODUCTION=${process.env.USE_ASAAS_PRODUCTION}`);
+  console.log(`[create-asaas-customer] Valor bruto da variável de ambiente: ${process.env.USE_ASAAS_PRODUCTION}`);
   
   if (event.httpMethod === 'OPTIONS') {
     return {
@@ -62,6 +63,7 @@ const handler: Handler = async (event: HandlerEvent) => {
     const isSandbox = !useProduction;
 
     console.log(`[create-asaas-customer] Modo de operação: ${useProduction ? 'PRODUÇÃO' : 'SANDBOX'}`);
+    console.log(`[create-asaas-customer] isSandbox: ${isSandbox}`);
 
     // Obter URL base da API
     const apiBaseUrl = getAsaasApiBaseUrl(isSandbox);
@@ -86,6 +88,9 @@ const handler: Handler = async (event: HandlerEvent) => {
     if (apiKey.includes(' ')) {
       console.warn('[create-asaas-customer] ALERTA: A chave API contém espaços, o que pode causar falhas de autenticação');
     }
+
+    // Exibir teste de caracteres especiais
+    console.log(`[create-asaas-customer] Caracteres especiais na chave? ${/[^\w\-\.]/.test(apiKey) ? 'SIM' : 'NÃO'}`);
 
     // Exibe o header de autorização formatado (primeiros caracteres apenas)
     const authHeader = `Bearer ${apiKey}`;

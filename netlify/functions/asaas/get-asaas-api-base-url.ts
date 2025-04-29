@@ -8,7 +8,7 @@ export function getAsaasApiBaseUrl(isSandboxParam?: boolean): string {
   const useProductionEnv = process.env.USE_ASAAS_PRODUCTION === 'true';
   const isSandbox = useProductionEnv ? false : (isSandboxParam !== undefined ? isSandboxParam : true);
   
-  // URLs corretas da API
+  // URLs corretas da API - verificadas na documentação oficial
   const sandboxUrl = 'https://sandbox.asaas.com/api/v3';
   const productionUrl = 'https://api.asaas.com/api/v3';
   
@@ -17,6 +17,7 @@ export function getAsaasApiBaseUrl(isSandboxParam?: boolean): string {
   console.log(`[getAsaasApiBaseUrl] USE_ASAAS_PRODUCTION=${useProductionEnv ? 'true' : 'false'}`);
   console.log(`[getAsaasApiBaseUrl] Ambiente selecionado: ${isSandbox ? 'SANDBOX' : 'PRODUÇÃO'}`);
   console.log(`[getAsaasApiBaseUrl] URL da API selecionada: ${url}`);
+  console.log(`[getAsaasApiBaseUrl] Valor bruto da variável de ambiente: ${process.env.USE_ASAAS_PRODUCTION}`);
   
   return url;
 }

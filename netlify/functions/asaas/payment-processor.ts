@@ -36,6 +36,17 @@ export async function processPaymentFlow(
     console.error(`[processPaymentFlow] URLs esperadas: ${expectedProductionUrl} ou ${expectedSandboxUrl}`);
   }
   
+  // Verificar se a chave contém espaços
+  if (apiKey.includes(' ')) {
+    console.warn('[processPaymentFlow] ALERTA: A chave API contém espaços, sanitizando...');
+    apiKey = apiKey.trim();
+  }
+  
+  // Verificar se a chave contém caracteres especiais
+  if (/[^\w\-\.]/.test(apiKey)) {
+    console.warn('[processPaymentFlow] ALERTA: A chave API contém caracteres especiais');
+  }
+  
   try {
     // Get email configuration
     const { data: emailConfig } = await supabase

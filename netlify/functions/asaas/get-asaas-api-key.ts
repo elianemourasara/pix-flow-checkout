@@ -19,6 +19,18 @@ let keyCache: KeyCache = {
 };
 
 /**
+ * Função para sanitizar chaves API, removendo espaços e caracteres problemáticos
+ */
+function sanitizeApiKey(key: string): string {
+  if (!key) return '';
+  // Remove espaços no início e fim
+  let sanitized = key.trim();
+  // Remove quebras de linha ou tabs que podem ter sido acidentalmente copiados
+  sanitized = sanitized.replace(/[\n\r\t]/g, '');
+  return sanitized;
+}
+
+/**
  * Função robusta para obter chave da API Asaas
  * Implementa cache em memória e mecanismo de fallback
  * 
@@ -35,7 +47,8 @@ export async function getAsaasApiKey(isSandboxParam?: boolean): Promise<string |
   // Caso contrário, usamos o parâmetro fornecido ou padrão para sandbox
   const isSandbox = useProductionEnv ? false : (isSandboxParam !== undefined ? isSandboxParam : true);
   
-  console.log(`[getAsaasApiKey] Ambiente determinado pelo USE_ASAAS_PRODUCTION=${useProductionEnv ? 'true' : 'false'}`);
+  console.log(`[getAsaasApiKey] Ambiente determinado pelo USE_ASAAS_PRODUCTION=${process.env.USE_ASAAS_PRODUCTION}`);
+  console.log(`[getAsaasApiKey] Valor de useProductionEnv: ${useProductionEnv}`);
   console.log(`[getAsaasApiKey] Obtendo chave Asaas para ambiente ${isSandbox ? 'sandbox' : 'produção'}`);
   
   try {
@@ -47,12 +60,15 @@ export async function getAsaasApiKey(isSandboxParam?: boolean): Promise<string |
         console.log(`[getAsaasApiKey] Usando chave ${isSandbox ? 'sandbox' : 'produção'} do cache`);
         // Exibir primeiros caracteres da chave para validação nos logs
         console.log(`[getAsaasApiKey] Chave em cache (primeiros caracteres): ${cachedKey.substring(0, 8)}...`);
-        return cachedKey;
+        console.log(`[getAsaasApiKey] Comprimento da chave em cache: ${cachedKey.length} caracteres`);
+        return sanitizeApiKey(cachedKey);
       }
     }
     
     // 1. Primeiro tenta obter do sistema novo (asaas_api_keys)
     console.log('[getAsaasApiKey] Tentando obter chave do sistema novo...');
+    console.log(`[getAsaasApiKey] Parâmetros da consulta: is_active=true, is_sandbox=${isSandbox}`);
+    
     const { data: activeKeys, error: keyError } = await supabase
       .from('asaas_api_keys')
       .select('*')
@@ -61,6 +77,8 @@ export async function getAsaasApiKey(isSandboxParam?: boolean): Promise<string |
       .order('priority', { ascending: true })
       .limit(1);
       
+    console.log(`[getAsaasApiKey] Resultado da consulta: encontradas ${activeKeys ? activeKeys.length : 0} chaves`);
+    
     if (!keyError && activeKeys && activeKeys.length > 0) {
       // Exibir informações da chave para validação
       console.log(`[getAsaasApiKey] Chave obtida do sistema novo: ${activeKeys[0].key_name} (ID: ${activeKeys[0].id})`);
@@ -68,15 +86,28 @@ export async function getAsaasApiKey(isSandboxParam?: boolean): Promise<string |
       console.log(`[getAsaasApiKey] Primeiros caracteres da chave: ${activeKeys[0].api_key.substring(0, 8)}...`);
       console.log(`[getAsaasApiKey] Comprimento da chave: ${activeKeys[0].api_key.length} caracteres`);
       
+      // Sanitizar a chave antes de retornar
+      const sanitizedKey = sanitizeApiKey(activeKeys[0].api_key);
+      console.log(`[getAsaasApiKey] Sanitização alterou tamanho? Antes: ${activeKeys[0].api_key.length}, Depois: ${sanitizedKey.length}`);
+      
+      if (sanitizedKey.length < 30) {
+        console.error('[getAsaasApiKey] ALERTA: A chave parece muito curta e pode estar incompleta');
+      }
+      
+      // Verificar outros potenciais problemas com a chave
+      if (sanitizedKey.includes(' ')) {
+        console.error('[getAsaasApiKey] ALERTA: A chave ainda contém espaços mesmo após sanitização');
+      }
+      
       // Atualizar cache
       if (isSandbox) {
-        keyCache.sandbox = activeKeys[0].api_key;
+        keyCache.sandbox = sanitizedKey;
       } else {
-        keyCache.production = activeKeys[0].api_key;
+        keyCache.production = sanitizedKey;
       }
       keyCache.timestamp = now;
       
-      return activeKeys[0].api_key;
+      return sanitizedKey;
     }
     
     if (keyError) {
@@ -115,19 +146,22 @@ export async function getAsaasApiKey(isSandboxParam?: boolean): Promise<string |
       return null;
     }
     
+    // Sanitizar a chave antes de retornar
+    const sanitizedLegacyKey = sanitizeApiKey(legacyKey);
+    
     console.log(`[getAsaasApiKey] Chave obtida do sistema legado com sucesso (${isSandbox ? 'SANDBOX' : 'PRODUÇÃO'})`);
-    console.log(`[getAsaasApiKey] Primeiros caracteres da chave legada: ${legacyKey.substring(0, 8)}...`);
-    console.log(`[getAsaasApiKey] Comprimento da chave legada: ${legacyKey.length} caracteres`);
+    console.log(`[getAsaasApiKey] Primeiros caracteres da chave legada: ${sanitizedLegacyKey.substring(0, 8)}...`);
+    console.log(`[getAsaasApiKey] Comprimento da chave legada: ${sanitizedLegacyKey.length} caracteres`);
     
     // Atualizar cache
     if (isSandbox) {
-      keyCache.sandbox = legacyKey;
+      keyCache.sandbox = sanitizedLegacyKey;
     } else {
-      keyCache.production = legacyKey;
+      keyCache.production = sanitizedLegacyKey;
     }
     keyCache.timestamp = now;
     
-    return legacyKey;
+    return sanitizedLegacyKey;
   } catch (error) {
     console.error('[getAsaasApiKey] Erro ao obter chave API do Asaas:', error);
     return null;
