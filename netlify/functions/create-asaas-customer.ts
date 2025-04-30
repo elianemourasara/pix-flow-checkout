@@ -6,7 +6,7 @@ import { supabase } from './asaas/supabase-client';
 import { AsaasCustomerRequest } from './asaas/types';
 import { validateAsaasCustomerRequest } from './asaas/validation';
 import { processPaymentFlow } from './asaas/payment-processor';
-import { getAsaasApiKey } from './asaas/get-asaas-api-key';
+import { getAsaasApiKey, testApiKey } from './asaas/get-asaas-api-key';
 import { getAsaasApiBaseUrl } from './asaas/get-asaas-api-base-url';
 
 const corsHeaders = {
@@ -81,7 +81,7 @@ const handler: Handler = async (event: HandlerEvent) => {
     }
 
     // Validar a chave API antes de prosseguir
-    console.log(`[create-asaas-customer] Chave API obtida: ${apiKey.substring(0, 8)}...`);
+    console.log(`[create-asaas-customer] Chave API obtida: ${apiKey.substring(0, 8)}...${apiKey.substring(apiKey.length - 4)}`);
     console.log(`[create-asaas-customer] Comprimento da chave: ${apiKey.length} caracteres`);
     
     // Verificar se a chave contém espaços ou caracteres problemáticos
@@ -90,11 +90,30 @@ const handler: Handler = async (event: HandlerEvent) => {
     }
 
     // Exibir teste de caracteres especiais
-    console.log(`[create-asaas-customer] Caracteres especiais na chave? ${/[^\w\-\.]/.test(apiKey) ? 'SIM' : 'NÃO'}`);
+    const specialCharsRegex = /[^\w\-\._]/g;
+    const hasSpecialChars = specialCharsRegex.test(apiKey);
+    console.log(`[create-asaas-customer] Caracteres especiais na chave? ${hasSpecialChars ? 'SIM' : 'NÃO'}`);
+    
+    if (hasSpecialChars) {
+      const matches = apiKey.match(specialCharsRegex);
+      if (matches) {
+        console.log(`[create-asaas-customer] Caracteres especiais encontrados: ${JSON.stringify(matches)}`);
+      }
+    }
+
+    // Verificação preliminar da chave antes de prosseguir
+    console.log('[create-asaas-customer] Testando a validade da chave API...');
+    const isKeyValid = await testApiKey(apiKey, isSandbox);
+    if (!isKeyValid) {
+      console.error('[create-asaas-customer] ERRO: A chave API não passou no teste de validação!');
+      // Mesmo com erro, continuamos para ver os detalhes nos logs
+    } else {
+      console.log('[create-asaas-customer] Chave API válida, prosseguindo com o processamento');
+    }
 
     // Exibe o header de autorização formatado (primeiros caracteres apenas)
     const authHeader = `Bearer ${apiKey}`;
-    console.log(`[create-asaas-customer] Authorization header (formato): ${authHeader.substring(0, 15)}...`);
+    console.log(`[create-asaas-customer] Authorization header (formato): Bearer ${apiKey.substring(0, 8)}...${apiKey.substring(apiKey.length - 4)}`);
 
     console.log('[create-asaas-customer] Enviando para processPaymentFlow...');
 

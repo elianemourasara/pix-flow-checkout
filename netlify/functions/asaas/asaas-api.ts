@@ -1,4 +1,3 @@
-
 import { 
   AsaasCustomerRequest, 
   AsaasCustomerResponse, 
@@ -6,6 +5,47 @@ import {
   AsaasPixQrCodeResponse,
   AsaasApiError
 } from './types';
+
+/**
+ * Sanitiza a chave API para garantir que não contenha caracteres problemáticos
+ * @param apiKey Chave API a ser sanitizada
+ */
+function sanitizeApiKey(apiKey: string): string {
+  if (!apiKey) return '';
+  
+  // Remove espaços no início e fim
+  let sanitized = apiKey.trim();
+  
+  // Remove quebras de linha ou tabs que podem ter sido acidentalmente copiados
+  sanitized = sanitized.replace(/[\n\r\t]/g, '');
+  
+  // Verifica se a chave contém aspas ou outros caracteres que possam afetar o header
+  if (sanitized.includes('"') || sanitized.includes("'") || sanitized.includes('\\')) {
+    console.warn('[sanitizeApiKey] ALERTA: A chave API contém caracteres que podem causar problemas');
+  }
+  
+  return sanitized;
+}
+
+/**
+ * Verifica se o Authorization header está formatado corretamente
+ * @param apiKey Chave API sanitizada
+ */
+function validateAuthHeader(apiKey: string): string {
+  const authHeader = `Bearer ${apiKey}`;
+  
+  // Verifica se o header tem um comprimento razoável
+  if (authHeader.length < 20) {
+    console.error('[validateAuthHeader] ERRO: Authorization header muito curto:', authHeader.length);
+  }
+  
+  // Verifica se o formato do header está correto
+  if (!authHeader.startsWith('Bearer ') || apiKey.length < 10) {
+    console.error('[validateAuthHeader] ERRO: Authorization header mal formatado');
+  }
+  
+  return authHeader;
+}
 
 export async function createAsaasCustomer(
   data: AsaasCustomerRequest, 
@@ -24,11 +64,17 @@ export async function createAsaasCustomer(
   };
 
   try {
-    // Sanitizar a apiKey antes de usar, removendo espaços
-    apiKey = apiKey ? apiKey.trim() : '';
+    // Sanitizar a apiKey, removendo espaços e caracteres problemáticos
+    const sanitizedApiKey = sanitizeApiKey(apiKey);
     
-    if (apiKey.includes(' ')) {
-      console.warn('[createAsaasCustomer] ALERTA: A chave API ainda contém espaços após trim()');
+    // Avisos sobre possíveis problemas com a chave
+    if (sanitizedApiKey !== apiKey) {
+      console.warn('[createAsaasCustomer] ALERTA: A chave API precisou ser sanitizada');
+      console.log(`[createAsaasCustomer] Comprimento antes: ${apiKey.length}, depois: ${sanitizedApiKey.length}`);
+    }
+    
+    if (sanitizedApiKey.includes(' ')) {
+      console.error('[createAsaasCustomer] ERRO: A chave API ainda contém espaços após sanitização');
     }
     
     const endpoint = `${apiUrl}/customers`;
@@ -37,10 +83,11 @@ export async function createAsaasCustomer(
     console.log(`[createAsaasCustomer] Nome do cliente: ${customerData.name}`);
     console.log(`[createAsaasCustomer] Email: ${customerData.email}`);
     console.log(`[createAsaasCustomer] CPF/CNPJ (primeiros dígitos): ${customerData.cpfCnpj.substring(0, 4)}...`);
-    console.log(`[createAsaasCustomer] Primeiros caracteres da API key: ${apiKey.substring(0, 8)}...`);
-    console.log(`[createAsaasCustomer] Comprimento da API key: ${apiKey.length} caracteres`);
+    console.log(`[createAsaasCustomer] Primeiros caracteres da API key: ${sanitizedApiKey.substring(0, 8)}...`);
+    console.log(`[createAsaasCustomer] Últimos caracteres da API key: ...${sanitizedApiKey.substring(sanitizedApiKey.length - 4)}`);
+    console.log(`[createAsaasCustomer] Comprimento da API key: ${sanitizedApiKey.length} caracteres`);
 
-    if (!apiKey) {
+    if (!sanitizedApiKey) {
       throw new Error('Chave API do Asaas não foi fornecida');
     }
 
@@ -48,13 +95,40 @@ export async function createAsaasCustomer(
       throw new Error('Nome ou CPF/CNPJ do cliente não foi fornecido');
     }
 
-    // Exibe o header de autorização formatado (primeiros caracteres apenas)
-    const authHeader = `Bearer ${apiKey}`;
-    console.log(`[createAsaasCustomer] Authorization header (formato): ${authHeader.substring(0, 15)}...`);
+    // Verifica e cria o header de autorização com a chave sanitizada
+    const authHeader = validateAuthHeader(sanitizedApiKey);
+    console.log(`[createAsaasCustomer] Authorization header (início): Bearer ${sanitizedApiKey.substring(0, 8)}...`);
+    console.log(`[createAsaasCustomer] Authorization header (final): ...${sanitizedApiKey.substring(sanitizedApiKey.length - 4)}`);
+    console.log(`[createAsaasCustomer] Authorization header comprimento total: ${authHeader.length}`);
 
-    // Teste de chave inválida - exibe caracteres especiais ou problemas
-    console.log(`[createAsaasCustomer] Caracteres especiais na chave? ${/[^\w\-\.]/.test(apiKey) ? 'SIM' : 'NÃO'}`);
+    // Teste para detecção de caracteres especiais ou problemas
+    const specialCharsRegex = /[^\w\-\._]/g;
+    const hasSpecialChars = specialCharsRegex.test(sanitizedApiKey);
+    console.log(`[createAsaasCustomer] Caracteres especiais na chave? ${hasSpecialChars ? 'SIM' : 'NÃO'}`);
+    
+    if (hasSpecialChars) {
+      const matches = sanitizedApiKey.match(specialCharsRegex);
+      if (matches) {
+        console.log(`[createAsaasCustomer] Caracteres especiais encontrados: ${JSON.stringify(matches)}`);
+      }
+    }
 
+    // Verificação final do endpoint antes da requisição
+    console.log(`[createAsaasCustomer] Enviando requisição para: ${endpoint}`);
+    console.log(`[createAsaasCustomer] Método: POST, Content-Type: application/json`);
+    
+    // Teste de conexão para verificar se a URL está acessível
+    try {
+      const testConnection = await fetch(apiUrl, {
+        method: 'HEAD',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      console.log(`[createAsaasCustomer] Teste de conexão com ${apiUrl}: ${testConnection.status} ${testConnection.statusText}`);
+    } catch (connError) {
+      console.error(`[createAsaasCustomer] ERRO ao testar conexão com ${apiUrl}:`, connError);
+    }
+
+    // Envio da requisição real
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {

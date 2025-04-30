@@ -23,10 +23,26 @@ let keyCache: KeyCache = {
  */
 function sanitizeApiKey(key: string): string {
   if (!key) return '';
+  
   // Remove espaços no início e fim
   let sanitized = key.trim();
+  
   // Remove quebras de linha ou tabs que podem ter sido acidentalmente copiados
   sanitized = sanitized.replace(/[\n\r\t]/g, '');
+  
+  // Verifica caracteres Unicode que não são visíveis mas poderiam estar presentes
+  const invisibleChars = /[\u200B-\u200D\uFEFF]/g;
+  if (invisibleChars.test(sanitized)) {
+    console.warn('[sanitizeApiKey] ALERTA: Caracteres unicode invisíveis detectados e removidos');
+    sanitized = sanitized.replace(invisibleChars, '');
+  }
+  
+  // Verifica caracteres problemáticos para autenticação
+  const problematicChars = /["'\\<>]/g; 
+  if (problematicChars.test(sanitized)) {
+    console.warn('[sanitizeApiKey] ALERTA: Caracteres problemáticos encontrados na chave API');
+  }
+  
   return sanitized;
 }
 
@@ -60,6 +76,7 @@ export async function getAsaasApiKey(isSandboxParam?: boolean): Promise<string |
         console.log(`[getAsaasApiKey] Usando chave ${isSandbox ? 'sandbox' : 'produção'} do cache`);
         // Exibir primeiros caracteres da chave para validação nos logs
         console.log(`[getAsaasApiKey] Chave em cache (primeiros caracteres): ${cachedKey.substring(0, 8)}...`);
+        console.log(`[getAsaasApiKey] Chave em cache (últimos caracteres): ...${cachedKey.substring(cachedKey.length - 4)}`);
         console.log(`[getAsaasApiKey] Comprimento da chave em cache: ${cachedKey.length} caracteres`);
         return sanitizeApiKey(cachedKey);
       }
@@ -82,8 +99,9 @@ export async function getAsaasApiKey(isSandboxParam?: boolean): Promise<string |
     if (!keyError && activeKeys && activeKeys.length > 0) {
       // Exibir informações da chave para validação
       console.log(`[getAsaasApiKey] Chave obtida do sistema novo: ${activeKeys[0].key_name} (ID: ${activeKeys[0].id})`);
-      console.log(`[getAsaasApiKey] Tipo da chave: ${isSandbox ? 'SANDBOX' : 'PRODUÇÃO'}`);
+      console.log(`[getAsaasApiKey] is_active=${activeKeys[0].is_active}, is_sandbox=${activeKeys[0].is_sandbox}`);
       console.log(`[getAsaasApiKey] Primeiros caracteres da chave: ${activeKeys[0].api_key.substring(0, 8)}...`);
+      console.log(`[getAsaasApiKey] Últimos caracteres da chave: ...${activeKeys[0].api_key.substring(activeKeys[0].api_key.length - 4)}`);
       console.log(`[getAsaasApiKey] Comprimento da chave: ${activeKeys[0].api_key.length} caracteres`);
       
       // Sanitizar a chave antes de retornar
@@ -98,6 +116,13 @@ export async function getAsaasApiKey(isSandboxParam?: boolean): Promise<string |
       if (sanitizedKey.includes(' ')) {
         console.error('[getAsaasApiKey] ALERTA: A chave ainda contém espaços mesmo após sanitização');
       }
+      
+      // Gera um hash simples para verificação da chave sem expor seu conteúdo
+      const keyHash = activeKeys[0].api_key
+        .split('')
+        .map(c => c.charCodeAt(0))
+        .reduce((a, b) => a + b, 0);
+      console.log(`[getAsaasApiKey] Hash de verificação da chave: ${keyHash}`);
       
       // Atualizar cache
       if (isSandbox) {
@@ -151,6 +176,7 @@ export async function getAsaasApiKey(isSandboxParam?: boolean): Promise<string |
     
     console.log(`[getAsaasApiKey] Chave obtida do sistema legado com sucesso (${isSandbox ? 'SANDBOX' : 'PRODUÇÃO'})`);
     console.log(`[getAsaasApiKey] Primeiros caracteres da chave legada: ${sanitizedLegacyKey.substring(0, 8)}...`);
+    console.log(`[getAsaasApiKey] Últimos caracteres da chave legada: ...${sanitizedLegacyKey.substring(sanitizedLegacyKey.length - 4)}`);
     console.log(`[getAsaasApiKey] Comprimento da chave legada: ${sanitizedLegacyKey.length} caracteres`);
     
     // Atualizar cache
@@ -178,4 +204,44 @@ export function clearKeyCache(): void {
     timestamp: 0
   };
   console.log('Cache de chaves API limpo');
+}
+
+/**
+ * Função para verificar diretamente se uma chave API é válida
+ * Realiza uma chamada simples para a API do Asaas
+ */
+export async function testApiKey(apiKey: string, isSandbox: boolean): Promise<boolean> {
+  const apiBaseUrl = isSandbox ? 'https://sandbox.asaas.com/api/v3' : 'https://api.asaas.com/api/v3';
+  const endpoint = `${apiBaseUrl}/status`;
+  
+  try {
+    console.log(`[testApiKey] Testando chave API no ambiente ${isSandbox ? 'sandbox' : 'produção'}`);
+    console.log(`[testApiKey] URL: ${endpoint}`);
+    console.log(`[testApiKey] Primeiros caracteres da chave: ${apiKey.substring(0, 8)}...`);
+    
+    const sanitizedKey = sanitizeApiKey(apiKey);
+    const authHeader = `Bearer ${sanitizedKey}`;
+    
+    const response = await fetch(endpoint, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader
+      }
+    });
+    
+    console.log(`[testApiKey] Status da resposta: ${response.status} ${response.statusText}`);
+    
+    if (response.ok) {
+      console.log('[testApiKey] Chave API válida!');
+      return true;
+    } else {
+      const errorText = await response.text();
+      console.error('[testApiKey] Erro na validação da chave API:', errorText);
+      return false;
+    }
+  } catch (error) {
+    console.error('[testApiKey] Erro ao testar chave API:', error);
+    return false;
+  }
 }
