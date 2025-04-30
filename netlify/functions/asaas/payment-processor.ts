@@ -2,6 +2,27 @@
 import { AsaasCustomerRequest, SupabasePaymentData } from './types';
 import { createAsaasCustomer, createAsaasPayment, getAsaasPixQrCode } from './asaas-api';
 import { savePaymentData, updateOrderAsaasPaymentId } from './supabase-operations';
+import { testApiKey } from './get-asaas-api-key';
+
+/**
+ * Função utilitária para validar a chave antes de prosseguir
+ */
+async function validateApiKey(apiKey: string, apiUrl: string): Promise<boolean> {
+  console.log('[validateApiKey] Validando chave API antes de prosseguir...');
+  console.log(`[validateApiKey] Testando chave: ${apiKey.substring(0, 8)}...${apiKey.substring(apiKey.length - 4)}`);
+  
+  const isSandbox = apiUrl.includes('sandbox');
+  const isValid = await testApiKey(apiKey, isSandbox);
+  
+  if (!isValid) {
+    console.error('[validateApiKey] ERRO: A chave API não é válida!');
+    console.error('[validateApiKey] Considere gerar uma nova chave no painel do Asaas');
+    return false;
+  }
+  
+  console.log('[validateApiKey] Chave API validada com sucesso!');
+  return true;
+}
 
 // Função para processar o pagamento com a chave API fornecida
 export async function processPaymentFlow(
@@ -17,12 +38,20 @@ export async function processPaymentFlow(
   console.log(`[processPaymentFlow] Últimos caracteres da chave API: ...${apiKey.substring(apiKey.length - 4)}`);
   console.log(`[processPaymentFlow] Comprimento da chave API: ${apiKey.length} caracteres`);
   
-  // Verificar se a chave tem o formato esperado
+  // Verificar formato da chave
   if (!apiKey.startsWith('$aact_')) {
-    console.error(`[processPaymentFlow] ERRO CRÍTICO: A chave API não começa com "$aact_", formato possivelmente inválido`);
+    console.error(`[processPaymentFlow] ALERTA CRÍTICO: A chave API não começa com "$aact_", formato possivelmente inválido`);
   }
   
-  // Verificar se a chave API foi fornecida
+  // Verificar se a chave contém espaços
+  if (apiKey.includes(' ')) {
+    console.error('[processPaymentFlow] ALERTA CRÍTICO: A chave API contém espaços, o que causará falha na autenticação');
+    // Remover espaços (não deveria ser necessário pois já é feito na função getAsaasApiKey)
+    apiKey = apiKey.replace(/\s/g, '');
+    console.log(`[processPaymentFlow] Chave corrigida, novo comprimento: ${apiKey.length}`);
+  }
+  
+  // Verificar existência da chave API
   if (!apiKey) {
     console.error('[processPaymentFlow] ERRO CRÍTICO: Chave API do Asaas não fornecida');
     throw new Error('Chave API do Asaas não configurada corretamente');
@@ -43,54 +72,13 @@ export async function processPaymentFlow(
     console.error(`[processPaymentFlow] URLs esperadas: ${expectedProductionUrl} ou ${expectedSandboxUrl}`);
   }
   
-  // Verificar se a chave contém espaços
-  if (apiKey.includes(' ')) {
-    console.warn('[processPaymentFlow] ALERTA: A chave API contém espaços, sanitizando...');
-    apiKey = apiKey.trim();
-  }
-  
-  // Verificar se a chave contém caracteres especiais
-  if (/[^\w\-\._$]/g.test(apiKey)) {
-    console.warn('[processPaymentFlow] ALERTA: A chave API contém caracteres especiais');
-    const specialChars = apiKey.match(/[^\w\-\._$]/g);
-    if (specialChars) {
-      console.warn(`[processPaymentFlow] Caracteres especiais encontrados: ${JSON.stringify(specialChars)}`);
-      console.warn(`[processPaymentFlow] Posições: ${specialChars.map(c => apiKey.indexOf(c)).join(', ')}`);
-    }
-  }
-  
   try {
-    // Testar a chave API antes de prosseguir
-    console.log('[processPaymentFlow] Testando a chave API antes de prosseguir...');
-    const testEndpoint = `${apiUrl}/status`;
-    
-    try {
-      console.log(`[processPaymentFlow] Enviando requisição de teste para: ${testEndpoint}`);
-      const testResponse = await fetch(testEndpoint, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        }
-      });
-      
-      console.log(`[processPaymentFlow] Resposta do teste: Status ${testResponse.status} ${testResponse.statusText}`);
-      
-      if (!testResponse.ok) {
-        console.error('[processPaymentFlow] ERRO NO TESTE DA CHAVE API:');
-        console.error(`[processPaymentFlow] Status: ${testResponse.status} ${testResponse.statusText}`);
-        
-        const errorText = await testResponse.text();
-        console.error('[processPaymentFlow] Resposta de erro:', errorText);
-        console.error('[processPaymentFlow] Headers recebidos:', JSON.stringify(Object.fromEntries([...testResponse.headers])));
-        
-        throw new Error(`Erro ao validar chave API: ${testResponse.status} ${testResponse.statusText}`);
-      } else {
-        console.log('[processPaymentFlow] Teste da chave API bem-sucedido!');
-      }
-    } catch (testError) {
-      console.error('[processPaymentFlow] Exceção ao testar a chave API:', testError);
-      throw new Error(`Falha ao testar chave API: ${testError.message}`);
+    // Validar a chave API antes de prosseguir
+    const isKeyValid = await validateApiKey(apiKey, apiUrl);
+    if (!isKeyValid) {
+      console.error('[processPaymentFlow] ERRO: A chave API não é válida. Considere verificar ou gerar uma nova chave.');
+      // Continuamos mesmo com erro para ver detalhes nos logs, mas em produção deveria falhar
+      console.error('[processPaymentFlow] PROSSEGUINDO MESMO COM CHAVE INVÁLIDA PARA DIAGNÓSTICO!');
     }
     
     // Get email configuration

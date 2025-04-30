@@ -6,7 +6,7 @@ import { supabase } from './asaas/supabase-client';
 import { AsaasCustomerRequest } from './asaas/types';
 import { validateAsaasCustomerRequest } from './asaas/validation';
 import { processPaymentFlow } from './asaas/payment-processor';
-import { getAsaasApiKey, testApiKey } from './asaas/get-asaas-api-key';
+import { getAsaasApiKey, testApiKey, simulateCurlTest } from './asaas/get-asaas-api-key';
 import { getAsaasApiBaseUrl } from './asaas/get-asaas-api-base-url';
 
 const corsHeaders = {
@@ -86,7 +86,7 @@ const handler: Handler = async (event: HandlerEvent) => {
     console.log(`[create-asaas-customer] Chave API obtida: ${apiKey.substring(0, 8)}...${apiKey.substring(apiKey.length - 4)}`);
     console.log(`[create-asaas-customer] Comprimento da chave: ${apiKey.length} caracteres`);
     
-    // Verificar se a chave tem o formato esperado
+    // Verificação preliminar do formato da chave
     if (!apiKey.startsWith('$aact_')) {
       console.error(`[create-asaas-customer] ALERTA CRÍTICO: A chave API não começa com "$aact_", formato possivelmente inválido`);
     }
@@ -108,13 +108,36 @@ const handler: Handler = async (event: HandlerEvent) => {
         console.log(`[create-asaas-customer] Posições dos caracteres especiais: ${matches.map(char => apiKey.indexOf(char)).join(', ')}`);
       }
     }
+    
+    // Teste cURL simulado para diagnóstico mais preciso
+    console.log('[create-asaas-customer] Executando teste cURL simulado...');
+    const curlTest = await simulateCurlTest(apiKey, isSandbox);
+    
+    if (curlTest.success) {
+      console.log('[create-asaas-customer] Teste cURL simulado BEM-SUCEDIDO!');
+    } else {
+      console.error(`[create-asaas-customer] Teste cURL simulado FALHOU: Status ${curlTest.status}`);
+      console.error('[create-asaas-customer] Resposta do teste cURL:', curlTest.response || curlTest.error);
+      console.error('[create-asaas-customer] ERRO CRÍTICO: A chave API parece ser inválida ou expirada.');
+      console.error('[create-asaas-customer] Sugestão: Gerar uma nova chave de API no painel do Asaas.');
+    }
 
     // Verificação preliminar da chave antes de prosseguir
     console.log('[create-asaas-customer] Testando a validade da chave API...');
     const isKeyValid = await testApiKey(apiKey, isSandbox);
     if (!isKeyValid) {
       console.error('[create-asaas-customer] ERRO: A chave API não passou no teste de validação!');
-      // Mesmo com erro, continuamos para ver os detalhes nos logs
+      console.error('[create-asaas-customer] Sugestão: Gerar uma nova chave de API no painel do Asaas.');
+      
+      // Retornar erro para o cliente
+      return {
+        statusCode: 401,
+        headers: corsHeaders,
+        body: JSON.stringify({ 
+          error: 'API key validation failed',
+          message: 'A chave API do Asaas foi rejeitada. Por favor, verifique suas configurações e gere uma nova chave no painel do Asaas.'
+        }),
+      };
     } else {
       console.log('[create-asaas-customer] Chave API válida, prosseguindo com o processamento');
     }
@@ -122,6 +145,7 @@ const handler: Handler = async (event: HandlerEvent) => {
     // Exibe o header de autorização formatado (primeiros caracteres apenas)
     const authHeader = `Bearer ${apiKey}`;
     console.log(`[create-asaas-customer] Authorization header (formato): Bearer ${apiKey.substring(0, 8)}...${apiKey.substring(apiKey.length - 4)}`);
+    console.log(`[create-asaas-customer] Comprimento total do header: ${authHeader.length}`);
 
     console.log('[create-asaas-customer] Enviando para processPaymentFlow...');
 
