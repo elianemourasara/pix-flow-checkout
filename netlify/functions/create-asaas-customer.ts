@@ -20,7 +20,7 @@ const handler: Handler = async (event: HandlerEvent) => {
   console.log('[create-asaas-customer] -------- Iniciando requisição --------');
   console.log(`[create-asaas-customer] Método: ${event.httpMethod}`);
   console.log(`[create-asaas-customer] Ambiente: USE_ASAAS_PRODUCTION=${process.env.USE_ASAAS_PRODUCTION}`);
-  console.log(`[create-asaas-customer] Valor bruto da variável de ambiente: ${process.env.USE_ASAAS_PRODUCTION}`);
+  console.log(`[create-asaas-customer] Valor bruto da variável de ambiente: "${process.env.USE_ASAAS_PRODUCTION}"`);
   
   if (event.httpMethod === 'OPTIONS') {
     return {
@@ -59,9 +59,11 @@ const handler: Handler = async (event: HandlerEvent) => {
     }
 
     // Verificar variáveis de ambiente e determinar ambiente correto
-    const useProduction = process.env.USE_ASAAS_PRODUCTION === 'true';
+    const useProductionEnvRaw = process.env.USE_ASAAS_PRODUCTION;
+    const useProduction = useProductionEnvRaw === 'true';
     const isSandbox = !useProduction;
 
+    console.log(`[create-asaas-customer] Valor bruto da variável USE_ASAAS_PRODUCTION: "${useProductionEnvRaw}"`);
     console.log(`[create-asaas-customer] Modo de operação: ${useProduction ? 'PRODUÇÃO' : 'SANDBOX'}`);
     console.log(`[create-asaas-customer] isSandbox: ${isSandbox}`);
 
@@ -84,13 +86,18 @@ const handler: Handler = async (event: HandlerEvent) => {
     console.log(`[create-asaas-customer] Chave API obtida: ${apiKey.substring(0, 8)}...${apiKey.substring(apiKey.length - 4)}`);
     console.log(`[create-asaas-customer] Comprimento da chave: ${apiKey.length} caracteres`);
     
+    // Verificar se a chave tem o formato esperado
+    if (!apiKey.startsWith('$aact_')) {
+      console.error(`[create-asaas-customer] ALERTA CRÍTICO: A chave API não começa com "$aact_", formato possivelmente inválido`);
+    }
+    
     // Verificar se a chave contém espaços ou caracteres problemáticos
     if (apiKey.includes(' ')) {
       console.warn('[create-asaas-customer] ALERTA: A chave API contém espaços, o que pode causar falhas de autenticação');
     }
 
     // Exibir teste de caracteres especiais
-    const specialCharsRegex = /[^\w\-\._]/g;
+    const specialCharsRegex = /[^\w\-\._$]/g;
     const hasSpecialChars = specialCharsRegex.test(apiKey);
     console.log(`[create-asaas-customer] Caracteres especiais na chave? ${hasSpecialChars ? 'SIM' : 'NÃO'}`);
     
@@ -98,6 +105,7 @@ const handler: Handler = async (event: HandlerEvent) => {
       const matches = apiKey.match(specialCharsRegex);
       if (matches) {
         console.log(`[create-asaas-customer] Caracteres especiais encontrados: ${JSON.stringify(matches)}`);
+        console.log(`[create-asaas-customer] Posições dos caracteres especiais: ${matches.map(char => apiKey.indexOf(char)).join(', ')}`);
       }
     }
 

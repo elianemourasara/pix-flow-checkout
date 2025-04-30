@@ -10,10 +10,17 @@ export async function processPaymentFlow(
   supabase: any,
   apiUrl: string
 ) {
+  console.log('==================== INÍCIO DO PROCESSAMENTO DE PAGAMENTO ====================');
   console.log(`[processPaymentFlow] Iniciando fluxo de pagamento com API URL: ${apiUrl}`);
   console.log(`[processPaymentFlow] Valor do pagamento: ${requestData.value}`);
   console.log(`[processPaymentFlow] Primeiros caracteres da chave API: ${apiKey.substring(0, 8)}...`);
+  console.log(`[processPaymentFlow] Últimos caracteres da chave API: ...${apiKey.substring(apiKey.length - 4)}`);
   console.log(`[processPaymentFlow] Comprimento da chave API: ${apiKey.length} caracteres`);
+  
+  // Verificar se a chave tem o formato esperado
+  if (!apiKey.startsWith('$aact_')) {
+    console.error(`[processPaymentFlow] ERRO CRÍTICO: A chave API não começa com "$aact_", formato possivelmente inválido`);
+  }
   
   // Verificar se a chave API foi fornecida
   if (!apiKey) {
@@ -43,11 +50,49 @@ export async function processPaymentFlow(
   }
   
   // Verificar se a chave contém caracteres especiais
-  if (/[^\w\-\.]/.test(apiKey)) {
+  if (/[^\w\-\._$]/g.test(apiKey)) {
     console.warn('[processPaymentFlow] ALERTA: A chave API contém caracteres especiais');
+    const specialChars = apiKey.match(/[^\w\-\._$]/g);
+    if (specialChars) {
+      console.warn(`[processPaymentFlow] Caracteres especiais encontrados: ${JSON.stringify(specialChars)}`);
+      console.warn(`[processPaymentFlow] Posições: ${specialChars.map(c => apiKey.indexOf(c)).join(', ')}`);
+    }
   }
   
   try {
+    // Testar a chave API antes de prosseguir
+    console.log('[processPaymentFlow] Testando a chave API antes de prosseguir...');
+    const testEndpoint = `${apiUrl}/status`;
+    
+    try {
+      console.log(`[processPaymentFlow] Enviando requisição de teste para: ${testEndpoint}`);
+      const testResponse = await fetch(testEndpoint, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        }
+      });
+      
+      console.log(`[processPaymentFlow] Resposta do teste: Status ${testResponse.status} ${testResponse.statusText}`);
+      
+      if (!testResponse.ok) {
+        console.error('[processPaymentFlow] ERRO NO TESTE DA CHAVE API:');
+        console.error(`[processPaymentFlow] Status: ${testResponse.status} ${testResponse.statusText}`);
+        
+        const errorText = await testResponse.text();
+        console.error('[processPaymentFlow] Resposta de erro:', errorText);
+        console.error('[processPaymentFlow] Headers recebidos:', JSON.stringify(Object.fromEntries([...testResponse.headers])));
+        
+        throw new Error(`Erro ao validar chave API: ${testResponse.status} ${testResponse.statusText}`);
+      } else {
+        console.log('[processPaymentFlow] Teste da chave API bem-sucedido!');
+      }
+    } catch (testError) {
+      console.error('[processPaymentFlow] Exceção ao testar a chave API:', testError);
+      throw new Error(`Falha ao testar chave API: ${testError.message}`);
+    }
+    
     // Get email configuration
     const { data: emailConfig } = await supabase
       .from('asaas_email_config')
@@ -133,6 +178,8 @@ export async function processPaymentFlow(
       // 5. Update order with Asaas payment ID
       await updateOrderAsaasPaymentId(supabase, requestData.orderId, payment.id);
       
+      console.log('==================== FIM DO PROCESSAMENTO DE PAGAMENTO (SUCESSO) ====================');
+      
       // Return formatted response data
       return {
         customer,
@@ -149,10 +196,13 @@ export async function processPaymentFlow(
       if (error.name === 'AsaasApiError') {
         console.error('[processPaymentFlow] Erro da API Asaas:', error.message, error.details);
       }
+      
+      console.log('==================== FIM DO PROCESSAMENTO DE PAGAMENTO (ERRO) ====================');
       throw error;
     }
   } catch (error) {
     console.error('[processPaymentFlow] Erro no processamento do pagamento:', error);
+    console.log('==================== FIM DO PROCESSAMENTO DE PAGAMENTO (ERRO) ====================');
     throw error;
   }
 }

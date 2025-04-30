@@ -55,15 +55,21 @@ function sanitizeApiKey(key: string): string {
  * Se USE_ASAAS_PRODUCTION=false ou não definida, sempre retornará uma chave sandbox
  */
 export async function getAsaasApiKey(isSandboxParam?: boolean): Promise<string | null> {
+  console.log('==================== INÍCIO DA OPERAÇÃO getAsaasApiKey ====================');
+  
   // Determinar se devemos usar sandbox baseado na variável de ambiente
   // Esta configuração tem precedência sobre o parâmetro
-  const useProductionEnv = process.env.USE_ASAAS_PRODUCTION === 'true';
+  const useProductionEnvRaw = process.env.USE_ASAAS_PRODUCTION;
+  const useProductionEnv = useProductionEnvRaw === 'true';
+  
+  console.log(`[getAsaasApiKey] Valor bruto da variável USE_ASAAS_PRODUCTION: "${useProductionEnvRaw}"`);
+  console.log(`[getAsaasApiKey] Interpretado como: ${useProductionEnv ? 'PRODUÇÃO' : 'SANDBOX'}`);
   
   // Se a variável de ambiente está definida, usamos ela para determinar o ambiente
   // Caso contrário, usamos o parâmetro fornecido ou padrão para sandbox
   const isSandbox = useProductionEnv ? false : (isSandboxParam !== undefined ? isSandboxParam : true);
   
-  console.log(`[getAsaasApiKey] Ambiente determinado pelo USE_ASAAS_PRODUCTION=${process.env.USE_ASAAS_PRODUCTION}`);
+  console.log(`[getAsaasApiKey] Ambiente determinado pelo USE_ASAAS_PRODUCTION=${useProductionEnvRaw}`);
   console.log(`[getAsaasApiKey] Valor de useProductionEnv: ${useProductionEnv}`);
   console.log(`[getAsaasApiKey] Obtendo chave Asaas para ambiente ${isSandbox ? 'sandbox' : 'produção'}`);
   
@@ -78,6 +84,7 @@ export async function getAsaasApiKey(isSandboxParam?: boolean): Promise<string |
         console.log(`[getAsaasApiKey] Chave em cache (primeiros caracteres): ${cachedKey.substring(0, 8)}...`);
         console.log(`[getAsaasApiKey] Chave em cache (últimos caracteres): ...${cachedKey.substring(cachedKey.length - 4)}`);
         console.log(`[getAsaasApiKey] Comprimento da chave em cache: ${cachedKey.length} caracteres`);
+        console.log('==================== FIM DA OPERAÇÃO getAsaasApiKey (do cache) ====================');
         return sanitizeApiKey(cachedKey);
       }
     }
@@ -100,13 +107,32 @@ export async function getAsaasApiKey(isSandboxParam?: boolean): Promise<string |
       // Exibir informações da chave para validação
       console.log(`[getAsaasApiKey] Chave obtida do sistema novo: ${activeKeys[0].key_name} (ID: ${activeKeys[0].id})`);
       console.log(`[getAsaasApiKey] is_active=${activeKeys[0].is_active}, is_sandbox=${activeKeys[0].is_sandbox}`);
-      console.log(`[getAsaasApiKey] Primeiros caracteres da chave: ${activeKeys[0].api_key.substring(0, 8)}...`);
-      console.log(`[getAsaasApiKey] Últimos caracteres da chave: ...${activeKeys[0].api_key.substring(activeKeys[0].api_key.length - 4)}`);
-      console.log(`[getAsaasApiKey] Comprimento da chave: ${activeKeys[0].api_key.length} caracteres`);
+      
+      const rawKey = activeKeys[0].api_key;
+      
+      // Verificar se a chave é uma string válida
+      if (typeof rawKey !== 'string') {
+        console.error(`[getAsaasApiKey] ERRO CRÍTICO: A chave não é uma string válida, é um ${typeof rawKey}`);
+        if (rawKey === null) {
+          console.error('[getAsaasApiKey] A chave é NULL');
+        } else if (rawKey === undefined) {
+          console.error('[getAsaasApiKey] A chave é undefined');
+        }
+        throw new Error('Formato de chave API inválido');
+      }
+      
+      console.log(`[getAsaasApiKey] Primeiros caracteres da chave: ${rawKey.substring(0, 8)}...`);
+      console.log(`[getAsaasApiKey] Últimos caracteres da chave: ...${rawKey.substring(rawKey.length - 4)}`);
+      console.log(`[getAsaasApiKey] Comprimento da chave: ${rawKey.length} caracteres`);
+      
+      // Verificar formato básico da chave Asaas
+      if (!rawKey.startsWith('$aact_')) {
+        console.error('[getAsaasApiKey] ALERTA CRÍTICO: A chave não começa com "$aact_", o que é incomum para chaves Asaas');
+      }
       
       // Sanitizar a chave antes de retornar
-      const sanitizedKey = sanitizeApiKey(activeKeys[0].api_key);
-      console.log(`[getAsaasApiKey] Sanitização alterou tamanho? Antes: ${activeKeys[0].api_key.length}, Depois: ${sanitizedKey.length}`);
+      const sanitizedKey = sanitizeApiKey(rawKey);
+      console.log(`[getAsaasApiKey] Sanitização alterou tamanho? Antes: ${rawKey.length}, Depois: ${sanitizedKey.length}`);
       
       if (sanitizedKey.length < 30) {
         console.error('[getAsaasApiKey] ALERTA: A chave parece muito curta e pode estar incompleta');
@@ -118,7 +144,7 @@ export async function getAsaasApiKey(isSandboxParam?: boolean): Promise<string |
       }
       
       // Gera um hash simples para verificação da chave sem expor seu conteúdo
-      const keyHash = activeKeys[0].api_key
+      const keyHash = rawKey
         .split('')
         .map(c => c.charCodeAt(0))
         .reduce((a, b) => a + b, 0);
@@ -132,6 +158,7 @@ export async function getAsaasApiKey(isSandboxParam?: boolean): Promise<string |
       }
       keyCache.timestamp = now;
       
+      console.log('==================== FIM DA OPERAÇÃO getAsaasApiKey (do DB) ====================');
       return sanitizedKey;
     }
     
@@ -150,6 +177,7 @@ export async function getAsaasApiKey(isSandboxParam?: boolean): Promise<string |
       
     if (configError) {
       console.error('[getAsaasApiKey] Erro ao buscar configuração do sistema legado:', configError);
+      console.log('==================== FIM DA OPERAÇÃO getAsaasApiKey (com erro) ====================');
       return null;
     }
     
@@ -159,7 +187,7 @@ export async function getAsaasApiKey(isSandboxParam?: boolean): Promise<string |
     if (configSandbox !== isSandbox && !useProductionEnv) {
       console.warn(`[getAsaasApiKey] Atenção: Solicitando chave ${isSandbox ? 'sandbox' : 'produção'} mas a configuração está definida como ${configSandbox ? 'sandbox' : 'produção'}`);
       // Se a variável de ambiente está definida, ignoramos a configuração do banco
-      if (process.env.USE_ASAAS_PRODUCTION === 'true') {
+      if (useProductionEnvRaw === 'true') {
         console.log('[getAsaasApiKey] Usando ambiente de PRODUÇÃO devido a variável USE_ASAAS_PRODUCTION=true');
       }
     }
@@ -168,7 +196,13 @@ export async function getAsaasApiKey(isSandboxParam?: boolean): Promise<string |
     
     if (!legacyKey) {
       console.error(`[getAsaasApiKey] Chave ${isSandbox ? 'sandbox' : 'produção'} não encontrada no sistema legado`);
+      console.log('==================== FIM DA OPERAÇÃO getAsaasApiKey (não encontrada) ====================');
       return null;
+    }
+    
+    // Verificar formato básico da chave legada
+    if (!legacyKey.startsWith('$aact_')) {
+      console.error('[getAsaasApiKey] ALERTA CRÍTICO: A chave legada não começa com "$aact_", o que é incomum para chaves Asaas');
     }
     
     // Sanitizar a chave antes de retornar
@@ -187,9 +221,11 @@ export async function getAsaasApiKey(isSandboxParam?: boolean): Promise<string |
     }
     keyCache.timestamp = now;
     
+    console.log('==================== FIM DA OPERAÇÃO getAsaasApiKey (sistema legado) ====================');
     return sanitizedLegacyKey;
   } catch (error) {
     console.error('[getAsaasApiKey] Erro ao obter chave API do Asaas:', error);
+    console.log('==================== FIM DA OPERAÇÃO getAsaasApiKey (com erro) ====================');
     return null;
   }
 }
@@ -211,16 +247,26 @@ export function clearKeyCache(): void {
  * Realiza uma chamada simples para a API do Asaas
  */
 export async function testApiKey(apiKey: string, isSandbox: boolean): Promise<boolean> {
+  console.log('==================== INÍCIO DO TESTE DE CHAVE API ====================');
   const apiBaseUrl = isSandbox ? 'https://sandbox.asaas.com/api/v3' : 'https://api.asaas.com/api/v3';
   const endpoint = `${apiBaseUrl}/status`;
+  
+  // Verificar se a chave tem o formato esperado
+  if (!apiKey.startsWith('$aact_')) {
+    console.warn(`[testApiKey] ALERTA: A chave não começa com "$aact_", formato possivelmente inválido`);
+  }
   
   try {
     console.log(`[testApiKey] Testando chave API no ambiente ${isSandbox ? 'sandbox' : 'produção'}`);
     console.log(`[testApiKey] URL: ${endpoint}`);
     console.log(`[testApiKey] Primeiros caracteres da chave: ${apiKey.substring(0, 8)}...`);
+    console.log(`[testApiKey] Últimos caracteres da chave: ...${apiKey.substring(apiKey.length - 4)}`);
+    console.log(`[testApiKey] Comprimento total da chave: ${apiKey.length}`);
     
     const sanitizedKey = sanitizeApiKey(apiKey);
     const authHeader = `Bearer ${sanitizedKey}`;
+    
+    console.log(`[testApiKey] Enviando requisição com Authorization: Bearer ${sanitizedKey.substring(0, 8)}...`);
     
     const response = await fetch(endpoint, {
       method: 'GET',
@@ -234,14 +280,19 @@ export async function testApiKey(apiKey: string, isSandbox: boolean): Promise<bo
     
     if (response.ok) {
       console.log('[testApiKey] Chave API válida!');
+      console.log('==================== FIM DO TESTE DE CHAVE API (válida) ====================');
       return true;
     } else {
       const errorText = await response.text();
       console.error('[testApiKey] Erro na validação da chave API:', errorText);
+      console.error('[testApiKey] Headers da resposta:', JSON.stringify(Object.fromEntries([...response.headers]), null, 2));
+      console.log('==================== FIM DO TESTE DE CHAVE API (inválida) ====================');
       return false;
     }
   } catch (error) {
     console.error('[testApiKey] Erro ao testar chave API:', error);
+    console.log('==================== FIM DO TESTE DE CHAVE API (com erro) ====================');
     return false;
   }
 }
+

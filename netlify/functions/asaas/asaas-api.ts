@@ -13,17 +13,58 @@ import {
 function sanitizeApiKey(apiKey: string): string {
   if (!apiKey) return '';
   
+  console.log(`[sanitizeApiKey] Sanitizando chave API (tamanho original: ${apiKey.length})`);
+  console.log(`[sanitizeApiKey] Primeiros 8 caracteres: ${apiKey.substring(0, 8)}...`);
+  console.log(`[sanitizeApiKey] Últimos 4 caracteres: ...${apiKey.substring(apiKey.length - 4)}`);
+  
+  // Converter para string caso não seja
+  let sanitized = String(apiKey);
+  
+  // Verificar se há caracteres de controle antes da sanitização
+  const controlCharsRegex = /[\x00-\x1F\x7F-\x9F]/g;
+  if (controlCharsRegex.test(sanitized)) {
+    console.warn('[sanitizeApiKey] ALERTA: Caracteres de controle detectados na chave API');
+    // Logar quais caracteres foram encontrados (como códigos Unicode)
+    const matches = sanitized.match(controlCharsRegex);
+    if (matches) {
+      console.warn(`[sanitizeApiKey] Caracteres encontrados: ${matches.map(c => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`).join(', ')}`);
+    }
+  }
+  
   // Remove espaços no início e fim
-  let sanitized = apiKey.trim();
+  let previousLength = sanitized.length;
+  sanitized = sanitized.trim();
+  if (previousLength !== sanitized.length) {
+    console.warn(`[sanitizeApiKey] ALERTA: Espaços no início/fim removidos. Antes: ${previousLength}, Depois: ${sanitized.length}`);
+  }
   
   // Remove quebras de linha ou tabs que podem ter sido acidentalmente copiados
+  previousLength = sanitized.length;
   sanitized = sanitized.replace(/[\n\r\t]/g, '');
+  if (previousLength !== sanitized.length) {
+    console.warn(`[sanitizeApiKey] ALERTA: Quebras de linha/tabs removidos. Antes: ${previousLength}, Depois: ${sanitized.length}`);
+  }
+  
+  // Verifica caracteres Unicode que não são visíveis mas poderiam estar presentes
+  previousLength = sanitized.length;
+  const invisibleChars = /[\u200B-\u200D\uFEFF]/g;
+  if (invisibleChars.test(sanitized)) {
+    console.warn('[sanitizeApiKey] ALERTA: Caracteres unicode invisíveis detectados e removidos');
+    sanitized = sanitized.replace(invisibleChars, '');
+    console.warn(`[sanitizeApiKey] Após remoção de caracteres invisíveis: Antes: ${previousLength}, Depois: ${sanitized.length}`);
+  }
   
   // Verifica se a chave contém aspas ou outros caracteres que possam afetar o header
   if (sanitized.includes('"') || sanitized.includes("'") || sanitized.includes('\\')) {
     console.warn('[sanitizeApiKey] ALERTA: A chave API contém caracteres que podem causar problemas');
   }
   
+  // Verificar formato básico da chave Asaas (começa com $aact_)
+  if (!sanitized.startsWith('$aact_')) {
+    console.error('[sanitizeApiKey] ERRO CRÍTICO: A chave API não segue o formato padrão $aact_*');
+  }
+  
+  console.log(`[sanitizeApiKey] Chave sanitizada (tamanho final: ${sanitized.length})`);
   return sanitized;
 }
 
@@ -32,19 +73,75 @@ function sanitizeApiKey(apiKey: string): string {
  * @param apiKey Chave API sanitizada
  */
 function validateAuthHeader(apiKey: string): string {
+  console.log('[validateAuthHeader] Validando formato do header de autorização');
+  
+  // Verificar se a chave API foi fornecida
+  if (!apiKey) {
+    console.error('[validateAuthHeader] ERRO CRÍTICO: Chave API vazia');
+    throw new Error('Chave API não fornecida');
+  }
+  
+  // Verificar o formato da chave
+  if (!apiKey.startsWith('$aact_')) {
+    console.error('[validateAuthHeader] ERRO CRÍTICO: Formato da chave API inválido - não começa com $aact_');
+  }
+  
   const authHeader = `Bearer ${apiKey}`;
   
-  // Verifica se o header tem um comprimento razoável
+  // Verificar se o header tem um comprimento razoável
   if (authHeader.length < 20) {
     console.error('[validateAuthHeader] ERRO: Authorization header muito curto:', authHeader.length);
+    throw new Error('Authorization header inválido - muito curto');
   }
   
   // Verifica se o formato do header está correto
   if (!authHeader.startsWith('Bearer ') || apiKey.length < 10) {
     console.error('[validateAuthHeader] ERRO: Authorization header mal formatado');
+    throw new Error('Authorization header inválido - formato incorreto');
   }
   
+  console.log(`[validateAuthHeader] Header válido: Bearer ${apiKey.substring(0, 8)}...${apiKey.substring(apiKey.length - 4)}`);
+  console.log(`[validateAuthHeader] Comprimento total do header: ${authHeader.length}`);
+  
   return authHeader;
+}
+
+/**
+ * Testa uma chave API diretamente antes de tentar usá-la
+ * @param apiKey Chave API já sanitizada
+ * @param apiUrl URL base da API
+ */
+async function testApiKeyEndpoint(apiKey: string, apiUrl: string): Promise<boolean> {
+  const testEndpoint = `${apiUrl}/status`;
+  console.log(`[testApiKeyEndpoint] Testando chave API no endpoint: ${testEndpoint}`);
+  console.log(`[testApiKeyEndpoint] Primeiros 8 caracteres da chave: ${apiKey.substring(0, 8)}...`);
+  
+  try {
+    const authHeader = validateAuthHeader(apiKey);
+    const response = await fetch(testEndpoint, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader
+      }
+    });
+    
+    console.log(`[testApiKeyEndpoint] Status da resposta: ${response.status} ${response.statusText}`);
+    
+    if (response.ok) {
+      console.log('[testApiKeyEndpoint] Chave API VÁLIDA!');
+      return true;
+    } else {
+      const errorText = await response.text();
+      console.error('[testApiKeyEndpoint] Erro no teste da chave API:', errorText);
+      console.error('[testApiKeyEndpoint] Status HTTP:', response.status);
+      console.error('[testApiKeyEndpoint] Headers da resposta:', JSON.stringify(Object.fromEntries([...response.headers])));
+      return false;
+    }
+  } catch (error) {
+    console.error('[testApiKeyEndpoint] Exceção no teste da chave API:', error);
+    return false;
+  }
 }
 
 export async function createAsaasCustomer(
@@ -64,17 +161,50 @@ export async function createAsaasCustomer(
   };
 
   try {
+    console.log('==================== INÍCIO DA OPERAÇÃO createAsaasCustomer ====================');
+    console.log(`[createAsaasCustomer] Ambiente: ${apiUrl}`);
+    console.log(`[createAsaasCustomer] Comprimento da chave original: ${apiKey.length}`);
+    
+    // Análise inicial da chave API bruta
+    console.log(`[createAsaasCustomer] Caracteres iniciais da chave bruta: ${apiKey.substring(0, 8)}...`);
+    console.log(`[createAsaasCustomer] Caracteres finais da chave bruta: ...${apiKey.substring(apiKey.length - 4)}`);
+    
+    // Verificar se a chave contém o prefixo correto do Asaas
+    const hasCorrectPrefix = apiKey.startsWith('$aact_');
+    console.log(`[createAsaasCustomer] Chave tem prefixo correto ($aact_): ${hasCorrectPrefix}`);
+    
     // Sanitizar a apiKey, removendo espaços e caracteres problemáticos
+    console.log('[createAsaasCustomer] Sanitizando chave API...');
     const sanitizedApiKey = sanitizeApiKey(apiKey);
     
     // Avisos sobre possíveis problemas com a chave
     if (sanitizedApiKey !== apiKey) {
       console.warn('[createAsaasCustomer] ALERTA: A chave API precisou ser sanitizada');
       console.log(`[createAsaasCustomer] Comprimento antes: ${apiKey.length}, depois: ${sanitizedApiKey.length}`);
+      
+      // Logar detalhes mais específicos sobre o que mudou
+      if (apiKey.trim() !== apiKey) {
+        console.warn('[createAsaasCustomer] ALERTA: A chave original continha espaços no início/fim');
+      }
+      
+      const newlineRegex = /[\n\r]/;
+      if (newlineRegex.test(apiKey)) {
+        console.warn('[createAsaasCustomer] ALERTA: A chave original continha quebras de linha');
+      }
+      
+      const tabRegex = /\t/;
+      if (tabRegex.test(apiKey)) {
+        console.warn('[createAsaasCustomer] ALERTA: A chave original continha caracteres de tabulação');
+      }
     }
     
-    if (sanitizedApiKey.includes(' ')) {
-      console.error('[createAsaasCustomer] ERRO: A chave API ainda contém espaços após sanitização');
+    // Testar se a chave API está válida antes de prosseguir
+    console.log('[createAsaasCustomer] Testando chave API antes de criar cliente...');
+    const isApiKeyValid = await testApiKeyEndpoint(sanitizedApiKey, apiUrl);
+    
+    if (!isApiKeyValid) {
+      console.error('[createAsaasCustomer] ERRO CRÍTICO: Teste de chave API falhou. Verifique a chave e permissões.');
+      throw new Error('Chave API do Asaas inválida ou sem permissões necessárias');
     }
     
     const endpoint = `${apiUrl}/customers`;
@@ -83,9 +213,9 @@ export async function createAsaasCustomer(
     console.log(`[createAsaasCustomer] Nome do cliente: ${customerData.name}`);
     console.log(`[createAsaasCustomer] Email: ${customerData.email}`);
     console.log(`[createAsaasCustomer] CPF/CNPJ (primeiros dígitos): ${customerData.cpfCnpj.substring(0, 4)}...`);
-    console.log(`[createAsaasCustomer] Primeiros caracteres da API key: ${sanitizedApiKey.substring(0, 8)}...`);
-    console.log(`[createAsaasCustomer] Últimos caracteres da API key: ...${sanitizedApiKey.substring(sanitizedApiKey.length - 4)}`);
-    console.log(`[createAsaasCustomer] Comprimento da API key: ${sanitizedApiKey.length} caracteres`);
+    console.log(`[createAsaasCustomer] Primeiros caracteres da API key sanitizada: ${sanitizedApiKey.substring(0, 8)}...`);
+    console.log(`[createAsaasCustomer] Últimos caracteres da API key sanitizada: ...${sanitizedApiKey.substring(sanitizedApiKey.length - 4)}`);
+    console.log(`[createAsaasCustomer] Comprimento da API key sanitizada: ${sanitizedApiKey.length} caracteres`);
 
     if (!sanitizedApiKey) {
       throw new Error('Chave API do Asaas não foi fornecida');
@@ -96,13 +226,14 @@ export async function createAsaasCustomer(
     }
 
     // Verifica e cria o header de autorização com a chave sanitizada
+    console.log('[createAsaasCustomer] Gerando header de Authorization...');
     const authHeader = validateAuthHeader(sanitizedApiKey);
     console.log(`[createAsaasCustomer] Authorization header (início): Bearer ${sanitizedApiKey.substring(0, 8)}...`);
     console.log(`[createAsaasCustomer] Authorization header (final): ...${sanitizedApiKey.substring(sanitizedApiKey.length - 4)}`);
     console.log(`[createAsaasCustomer] Authorization header comprimento total: ${authHeader.length}`);
 
     // Teste para detecção de caracteres especiais ou problemas
-    const specialCharsRegex = /[^\w\-\._]/g;
+    const specialCharsRegex = /[^\w\-\._$]/g;
     const hasSpecialChars = specialCharsRegex.test(sanitizedApiKey);
     console.log(`[createAsaasCustomer] Caracteres especiais na chave? ${hasSpecialChars ? 'SIM' : 'NÃO'}`);
     
@@ -110,6 +241,7 @@ export async function createAsaasCustomer(
       const matches = sanitizedApiKey.match(specialCharsRegex);
       if (matches) {
         console.log(`[createAsaasCustomer] Caracteres especiais encontrados: ${JSON.stringify(matches)}`);
+        console.log(`[createAsaasCustomer] Posição dos caracteres especiais: ${matches.map(char => sanitizedApiKey.indexOf(char)).join(', ')}`);
       }
     }
 
@@ -129,6 +261,7 @@ export async function createAsaasCustomer(
     }
 
     // Envio da requisição real
+    console.log('[createAsaasCustomer] Enviando requisição HTTP para criar cliente...');
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
@@ -159,6 +292,7 @@ export async function createAsaasCustomer(
 
     const responseData = await response.json();
     console.log('[createAsaasCustomer] Cliente criado com sucesso:', responseData.id);
+    console.log('==================== FIM DA OPERAÇÃO createAsaasCustomer ====================');
     return responseData;
   } catch (error) {
     console.error('[createAsaasCustomer] Erro ao criar cliente:', error);
