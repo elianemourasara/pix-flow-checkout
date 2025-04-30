@@ -1,7 +1,8 @@
 
 import { Handler } from '@netlify/functions';
 import { supabase } from './asaas/supabase-client';
-import { getAsaasApiKey, getAsaasApiBaseUrl } from './asaas/get-asaas-api-key';
+import { getAsaasApiKey } from './asaas/get-asaas-api-key';
+import { getAsaasApiBaseUrl } from './asaas/get-asaas-api-base-url';
 
 // Define CORS headers para permitir chamadas do frontend
 const corsHeaders = {
