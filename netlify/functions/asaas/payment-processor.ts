@@ -3,6 +3,7 @@ import { AsaasCustomerRequest, SupabasePaymentData } from './types';
 import { createAsaasCustomer, createAsaasPayment, getAsaasPixQrCode } from './asaas-api';
 import { savePaymentData, updateOrderAsaasPaymentId } from './supabase-operations';
 import { testApiKey } from './get-asaas-api-key';
+import * as https from 'https';
 
 /**
  * Função utilitária para validar a chave antes de prosseguir
@@ -12,16 +13,50 @@ async function validateApiKey(apiKey: string, apiUrl: string): Promise<boolean> 
   console.log(`[validateApiKey] Testando chave: ${apiKey.substring(0, 8)}...${apiKey.substring(apiKey.length - 4)}`);
   
   const isSandbox = apiUrl.includes('sandbox');
-  const isValid = await testApiKey(apiKey, isSandbox);
   
-  if (!isValid) {
-    console.error('[validateApiKey] ERRO: A chave API não é válida!');
-    console.error('[validateApiKey] Considere gerar uma nova chave no painel do Asaas');
+  // Teste com agente HTTPS e configurações personalizadas
+  try {
+    const agent = new https.Agent({
+      rejectUnauthorized: true,
+      keepAlive: true,
+      timeout: 30000
+    });
+    
+    // Teste em endpoint menos restrito (/status em vez de /customers)
+    const testUrl = `${apiUrl}/status`;
+    console.log(`[validateApiKey] Testando conexão em: ${testUrl}`);
+    
+    const response = await fetch(testUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'User-Agent': 'Mozilla/5.0 Lovable/Netlify',
+        'Accept': '*/*',
+        'Cache-Control': 'no-cache'
+      },
+      // @ts-ignore - Tipagem incompatível entre node-fetch e fetch nativo
+      agent,
+      timeout: 30000
+    });
+    
+    console.log(`[validateApiKey] Status da resposta: ${response.status}`);
+    console.log(`[validateApiKey] Headers da resposta: ${JSON.stringify(Object.fromEntries([...response.headers]))}`);
+    
+    const responseText = await response.text();
+    console.log(`[validateApiKey] Corpo da resposta: ${responseText.substring(0, 200)}...`);
+    
+    if (response.ok) {
+      console.log('[validateApiKey] Chave API validada com sucesso!');
+      return true;
+    } else {
+      console.error(`[validateApiKey] Erro na validação: Status ${response.status}`);
+      return false;
+    }
+  } catch (error) {
+    console.error('[validateApiKey] Erro durante validação:', error);
     return false;
   }
-  
-  console.log('[validateApiKey] Chave API validada com sucesso!');
-  return true;
 }
 
 // Função para processar o pagamento com a chave API fornecida
@@ -73,11 +108,13 @@ export async function processPaymentFlow(
   }
   
   try {
-    // Validar a chave API antes de prosseguir
+    // Logar a chave COMPLETA para diagnóstico - REMOVER EM PRODUÇÃO
+    console.log('[processPaymentFlow] CHAVE COMPLETA PARA DIAGNÓSTICO (REMOVER EM PRODUÇÃO):', apiKey);
+    
+    // Validar a chave API antes de prosseguir com teste independente
     const isKeyValid = await validateApiKey(apiKey, apiUrl);
     if (!isKeyValid) {
       console.error('[processPaymentFlow] ERRO: A chave API não é válida. Considere verificar ou gerar uma nova chave.');
-      // Continuamos mesmo com erro para ver detalhes nos logs, mas em produção deveria falhar
       console.error('[processPaymentFlow] PROSSEGUINDO MESMO COM CHAVE INVÁLIDA PARA DIAGNÓSTICO!');
     }
     
@@ -121,6 +158,37 @@ export async function processPaymentFlow(
     
     // 1. Create customer in Asaas
     try {
+      // Teste manual da API antes de chamar createAsaasCustomer
+      console.log('[processPaymentFlow] Teste manual da API antes de criar cliente...');
+      
+      const agent = new https.Agent({
+        rejectUnauthorized: true,
+        keepAlive: true,
+        timeout: 30000
+      });
+      
+      // Teste em endpoint de status para verificar conectividade antes de continuar
+      try {
+        const testResponse = await fetch(`${apiUrl}/status`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+            'User-Agent': 'Mozilla/5.0 Lovable/Netlify Test',
+            'Accept': '*/*'
+          },
+          // @ts-ignore - Tipagem incompatível entre node-fetch e fetch nativo
+          agent
+        });
+        
+        console.log(`[processPaymentFlow] Teste de conectividade - Status: ${testResponse.status}`);
+        if (!testResponse.ok) {
+          console.error('[processPaymentFlow] ALERTA: Teste de conectividade falhou, mas tentaremos criar o cliente mesmo assim');
+        }
+      } catch (testError) {
+        console.error('[processPaymentFlow] Erro no teste de conectividade:', testError);
+      }
+      
       console.log('[processPaymentFlow] Tentando criar cliente no Asaas...');
       const customer = await createAsaasCustomer(requestData, apiKey, apiUrl);
       console.log('[processPaymentFlow] Cliente criado no Asaas com sucesso:', customer);

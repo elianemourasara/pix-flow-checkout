@@ -22,6 +22,9 @@ const handler: Handler = async (event: HandlerEvent) => {
   console.log(`[create-asaas-customer] Ambiente: USE_ASAAS_PRODUCTION=${process.env.USE_ASAAS_PRODUCTION}`);
   console.log(`[create-asaas-customer] Valor bruto da variável de ambiente: "${process.env.USE_ASAAS_PRODUCTION}"`);
   
+  // Logging detalhado dos headers recebidos para análise de CORS e proxies
+  console.log('[create-asaas-customer] Headers recebidos:', JSON.stringify(event.headers));
+  
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 204,
@@ -120,10 +123,71 @@ const handler: Handler = async (event: HandlerEvent) => {
       console.error('[create-asaas-customer] Resposta do teste cURL:', curlTest.response || curlTest.error);
       console.error('[create-asaas-customer] ERRO CRÍTICO: A chave API parece ser inválida ou expirada.');
       console.error('[create-asaas-customer] Sugestão: Gerar uma nova chave de API no painel do Asaas.');
+      
+      // Teste direto com fetch sem configurações adicionais
+      console.log('[create-asaas-customer] Tentando chamada fetch direta sem usar nossa função de teste...');
+      
+      try {
+        // Este teste usa fetch diretamente para eliminar quaisquer problemas em nossas funções
+        const directFetchResponse = await fetch(`${apiBaseUrl}/status`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        console.log(`[create-asaas-customer] Teste fetch direto: Status ${directFetchResponse.status}`);
+        console.log('[create-asaas-customer] Headers da resposta:', JSON.stringify(Object.fromEntries([...directFetchResponse.headers]), null, 2));
+        
+        // Tentar verificar se há problemas de proxy ou rede
+        console.log('[create-asaas-customer] Testando latência e conectividade...');
+        const startTime = Date.now();
+        await fetch('https://api.asaas.com/api/v3/status', { method: 'GET' });
+        const endTime = Date.now();
+        console.log(`[create-asaas-customer] Tempo de resposta para api.asaas.com: ${endTime - startTime}ms`);
+      } catch (networkError) {
+        console.error('[create-asaas-customer] Erro de rede na chamada direta:', networkError);
+      }
     }
 
     // Verificação preliminar da chave antes de prosseguir
-    console.log('[create-asaas-customer] Testando a validade da chave API...');
+    console.log('[create-asaas-customer] Testando a validade da chave API com configuração adaptada...');
+    
+    // Teste com diferentes configurações de fetch
+    // Primeira tentativa: com credenciais
+    try {
+      const responseWithCreds = await fetch(`${apiBaseUrl}/customers?limit=1`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        credentials: 'include' // Teste com credenciais incluídas
+      });
+      
+      console.log(`[create-asaas-customer] Teste com credentials:include: Status ${responseWithCreds.status}`);
+    } catch (e) {
+      console.error('[create-asaas-customer] Erro no teste com credentials:', e);
+    }
+    
+    // Segunda tentativa: sem cache
+    try {
+      const responseNoCache = await fetch(`${apiBaseUrl}/customers?limit=1`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+          'Cache-Control': 'no-cache, no-store'
+        }
+      });
+      
+      console.log(`[create-asaas-customer] Teste sem cache: Status ${responseNoCache.status}`);
+    } catch (e) {
+      console.error('[create-asaas-customer] Erro no teste sem cache:', e);
+    }
+    
+    // Teste original
     const isKeyValid = await testApiKey(apiKey, isSandbox);
     if (!isKeyValid) {
       console.error('[create-asaas-customer] ERRO: A chave API não passou no teste de validação!');

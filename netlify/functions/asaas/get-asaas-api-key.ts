@@ -1,5 +1,7 @@
 
 import { supabase } from './supabase-client';
+import fetch from 'node-fetch';
+import * as https from 'https';
 
 /**
  * Cache em memória para chaves API
@@ -35,6 +37,17 @@ function sanitizeApiKey(key: string): string {
   if (invisibleChars.test(sanitized)) {
     console.warn('[sanitizeApiKey] ALERTA: Caracteres unicode invisíveis detectados e removidos');
     sanitized = sanitized.replace(invisibleChars, '');
+  }
+  
+  // Remover aspas que possam ter sido copiadas junto com a chave
+  if (sanitized.startsWith('"') || sanitized.endsWith('"')) {
+    console.warn('[sanitizeApiKey] ALERTA: Aspas detectadas e removidas da chave');
+    sanitized = sanitized.replace(/"/g, '');
+  }
+  
+  if (sanitized.startsWith("'") || sanitized.endsWith("'")) {
+    console.warn('[sanitizeApiKey] ALERTA: Aspas simples detectadas e removidas da chave');
+    sanitized = sanitized.replace(/'/g, '');
   }
   
   // Remove espaços internos que possam existir
@@ -164,6 +177,9 @@ export async function getAsaasApiKey(isSandboxParam?: boolean): Promise<string |
       }
       keyCache.timestamp = now;
       
+      // CHAVE COMPLETA PARA DIAGNÓSTICO - REMOVER EM PRODUÇÃO
+      console.log('[getAsaasApiKey] CHAVE COMPLETA PARA DIAGNÓSTICO (REMOVER EM PRODUÇÃO):', sanitizedKey);
+      
       // Testar a validade da chave antes de retornar
       const keyIsValid = await testApiKey(sanitizedKey, isSandbox);
       if (!keyIsValid) {
@@ -229,6 +245,9 @@ export async function getAsaasApiKey(isSandboxParam?: boolean): Promise<string |
     console.log(`[getAsaasApiKey] Últimos caracteres da chave legada: ...${sanitizedLegacyKey.substring(sanitizedLegacyKey.length - 4)}`);
     console.log(`[getAsaasApiKey] Comprimento da chave legada: ${sanitizedLegacyKey.length} caracteres`);
     console.log(`[getAsaasApiKey] Comprimento original: ${legacyKey.length}, Após sanitização: ${sanitizedLegacyKey.length}`);
+    
+    // CHAVE COMPLETA PARA DIAGNÓSTICO - REMOVER EM PRODUÇÃO
+    console.log('[getAsaasApiKey] CHAVE LEGADA COMPLETA PARA DIAGNÓSTICO (REMOVER EM PRODUÇÃO):', sanitizedLegacyKey);
     
     // Verificar se a sanitização alterou a chave
     if (legacyKey !== sanitizedLegacyKey) {
@@ -307,13 +326,24 @@ export async function testApiKey(apiKey: string, isSandbox: boolean): Promise<bo
     console.log(`[testApiKey] Authorization header (formato): Bearer ${apiKey.substring(0, 8)}...${apiKey.substring(apiKey.length - 4)}`);
     console.log(`[testApiKey] Comprimento total do header: ${authHeader.length}`);
     
-    // Usar fetch diretamente para diagnosticar problemas de rede ou CORS
+    // Criar um agente HTTPS com configurações especiais
+    const agent = new https.Agent({
+      rejectUnauthorized: true, // Requerido para HTTPS
+      keepAlive: true,
+      timeout: 30000
+    });
+    
+    // Usar fetch com novo agente e configurações
     const response = await fetch(endpoint, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': authHeader
-      }
+        'Authorization': authHeader,
+        'User-Agent': 'Lovable/Netlify Function'
+      },
+      // @ts-ignore - Tipagem incompatível entre node-fetch e fetch nativo
+      agent,
+      timeout: 30000
     });
     
     console.log(`[testApiKey] Status da resposta: ${response.status} ${response.statusText}`);
@@ -358,16 +388,32 @@ export async function simulateCurlTest(apiKey: string, isSandbox: boolean): Prom
     console.log(`[simulateCurlTest] Testando chave como se fosse cURL para: ${endpoint}`);
     console.log(`[simulateCurlTest] Authorization: Bearer ${apiKey.substring(0, 8)}...`);
     
-    // Simular um cURL request
+    // Criar um agente HTTPS com configurações especiais
+    const agent = new https.Agent({
+      rejectUnauthorized: true,
+      keepAlive: true,
+      timeout: 30000
+    });
+    
+    // Simular um cURL request com configurações adicionais
     const response = await fetch(endpoint, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      }
+        'Authorization': `Bearer ${apiKey}`,
+        'User-Agent': 'Mozilla/5.0 Lovable/Netlify',
+        'Accept': '*/*',
+        'Cache-Control': 'no-cache'
+      },
+      // @ts-ignore - Tipagem incompatível entre node-fetch e fetch nativo
+      agent,
+      timeout: 30000
     });
     
     const responseText = await response.text();
+    
+    // Logar headers completos para diagnóstico
+    console.log('[simulateCurlTest] Response headers:', JSON.stringify(Object.fromEntries([...response.headers]), null, 2));
     
     return {
       success: response.ok,
@@ -375,6 +421,7 @@ export async function simulateCurlTest(apiKey: string, isSandbox: boolean): Prom
       response: responseText
     };
   } catch (error) {
+    console.error('[simulateCurlTest] Erro na simulação de cURL:', error);
     return {
       success: false,
       error: error.message
