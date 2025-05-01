@@ -1,4 +1,12 @@
 
+// Re-export service functionality
 export * from './asaas/types';
-export * from './asaas/keyService';
+export { 
+  getActiveApiKey,
+  getAllApiKeys,
+  setActiveKey,
+  toggleKeyStatus,
+  addApiKey,
+  testApiKey
+} from './asaas/keyService';
 export * from './asaas/keyStatisticsService';

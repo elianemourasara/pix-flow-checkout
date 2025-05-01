@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { getActiveApiKey, getAllApiKeys, AsaasApiKey } from '@/services/asaas/keyService';
+import { getActiveApiKey, getAllApiKeys, AsaasApiKey } from '@/services/asaas/types';
 
 interface AsaasApiKeysOptions {
   isSandbox?: boolean;
