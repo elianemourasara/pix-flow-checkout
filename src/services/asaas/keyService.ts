@@ -60,6 +60,11 @@ export async function getAllApiKeys(isSandbox: boolean): Promise<AsaasApiKey[]> 
 }
 
 /**
+ * Alias para getAllApiKeys, para manter compatibilidade
+ */
+export const listApiKeys = getAllApiKeys;
+
+/**
  * Ativa uma chave API específica
  * @param keyId ID da chave a ser ativada
  * @returns true se a operação foi bem-sucedida
@@ -103,6 +108,36 @@ export async function setActiveKey(keyId: number): Promise<boolean> {
     return true;
   } catch (error) {
     console.error('Erro ao ativar chave API:', error);
+    return false;
+  }
+}
+
+/**
+ * Alias para setActiveKey, para manter compatibilidade
+ */
+export const updateActiveKey = setActiveKey;
+
+/**
+ * Alterna o status de ativação de uma chave
+ * @param keyId ID da chave
+ * @param isActive Novo status de ativação
+ * @returns true se sucesso
+ */
+export async function toggleKeyStatus(keyId: number, isActive: boolean): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('asaas_api_keys')
+      .update({ is_active: isActive })
+      .eq('id', keyId);
+      
+    if (error) {
+      console.error('Erro ao alternar status da chave:', error);
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Erro ao alternar status da chave:', error);
     return false;
   }
 }

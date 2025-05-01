@@ -4,6 +4,17 @@ import { supabase } from '@/integrations/supabase/client';
 /**
  * Estatísticas de uso de chave API
  */
+export interface KeyMetrics {
+  uses: number;
+  errors: number;
+  lastUsed: Date | null;
+  lastError: Date | null;
+  lastErrorMessage: string | null;
+}
+
+/**
+ * Estatísticas de uso para uma chave API específica
+ */
 interface KeyStatistics {
   totalPayments: number;
   successfulPayments: number;
@@ -53,4 +64,29 @@ export async function getKeyStatistics(keyId: number): Promise<KeyStatistics | n
     console.error('Erro ao buscar estatísticas da chave:', error);
     return null;
   }
+}
+
+/**
+ * Função para obter métricas simuladas de todas as chaves
+ * Para demonstração - será substituído por dados reais no futuro
+ * @returns Map com chaves e métricas
+ */
+export function getKeyMetrics(): Record<string, KeyMetrics> {
+  // Retorna dados mock para demonstração
+  return {
+    "1": {
+      uses: 126,
+      errors: 0,
+      lastUsed: new Date(),
+      lastError: null,
+      lastErrorMessage: null
+    },
+    "2": {
+      uses: 42,
+      errors: 3,
+      lastUsed: new Date(Date.now() - 24 * 60 * 60 * 1000),
+      lastError: new Date(Date.now() - 48 * 60 * 60 * 1000),
+      lastErrorMessage: "API key validation failed"
+    }
+  };
 }

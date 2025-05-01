@@ -25,3 +25,14 @@ export const ASAAS_API_URLS = {
 export function getApiBaseUrl(environment: AsaasEnvironment): string {
   return ASAAS_API_URLS[environment];
 }
+
+/**
+ * Interface para métricas de uso de chaves API
+ */
+export interface KeyMetrics {
+  uses: number;
+  errors: number;
+  lastUsed: Date | null;
+  lastError: Date | null;
+  lastErrorMessage: string | null;
+}

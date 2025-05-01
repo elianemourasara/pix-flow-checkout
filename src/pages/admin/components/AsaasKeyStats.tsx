@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { getKeyStatistics } from '@/services/asaasKeyManager';
+import { getKeyMetrics } from '@/services/asaas/keyStatisticsService';
 import { KeyMetrics } from '@/config/asaas';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,7 +22,7 @@ const AsaasKeyStats: React.FC = () => {
   const loadStats = async () => {
     setIsLoading(true);
     try {
-      const rawStats = getKeyStatistics();
+      const rawStats = getKeyMetrics();
       
       // Vamos buscar os nomes das chaves para exibição mais amigável
       // Em um caso real, você provavelmente buscaria isso do banco de dados

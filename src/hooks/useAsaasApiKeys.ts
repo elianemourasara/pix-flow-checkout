@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { getActiveApiKey, listApiKeys } from '@/services/asaasKeyManager';
+import { getActiveApiKey, getAllApiKeys, AsaasApiKey } from '@/services/asaas/keyService';
 
 interface AsaasApiKeysOptions {
   isSandbox?: boolean;
@@ -32,16 +32,16 @@ export function useAsaasApiKeys({ isSandbox = false }: AsaasApiKeysOptions = {})
         }
         
         // Carregar todas as chaves ativas para fallback
-        const allKeys = await listApiKeys(isSandbox);
+        const allKeys = await getAllApiKeys(isSandbox);
         const activeKeys = allKeys.filter(k => k.is_active);
         
         // Excluir a chave ativa principal da lista de fallback
         const fallbackKeysData = activeKeyData 
-          ? activeKeys.filter(k => k.id !== activeKeyData.id)
+          ? activeKeys.filter((k: AsaasApiKey) => k.id !== activeKeyData.id)
           : activeKeys;
         
         setFallbackKeys(
-          fallbackKeysData.map(k => ({
+          fallbackKeysData.map((k: AsaasApiKey) => ({
             id: k.id,
             key: k.api_key,
             name: k.key_name

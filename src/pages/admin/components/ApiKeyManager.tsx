@@ -6,22 +6,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { listApiKeys, addApiKey, toggleKeyStatus, getActiveApiKey } from '@/services/asaasKeyService';
+import { getAllApiKeys as listApiKeys, addApiKey, toggleKeyStatus, getActiveApiKey } from '@/services/asaas/keyService';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, Check } from 'lucide-react';
-
-interface ApiKey {
-  id: number;
-  key_name: string;
-  api_key: string;
-  is_active: boolean;
-  priority: number;
-  is_sandbox: boolean;
-}
+import { AsaasApiKey } from '@/services/asaas/types';
 
 const ApiKeyManager = () => {
-  const [keys, setKeys] = useState<ApiKey[]>([]);
+  const [keys, setKeys] = useState<AsaasApiKey[]>([]);
   const [activeKeyId, setActiveKeyId] = useState<number | null>(null);
   const [newKeyName, setNewKeyName] = useState('');
   const [newApiKey, setNewApiKey] = useState('');
@@ -50,8 +42,14 @@ const ApiKeyManager = () => {
         setActiveKeyId(activeSandboxKey.id);
       }
       
-      // Load all keys at once, regardless of sandbox status
-      const allKeys = await listApiKeys();
+      // Load production keys
+      const productionKeys = await listApiKeys(false);
+      // Load sandbox keys
+      const sandboxKeys = await listApiKeys(true);
+      
+      // Combine both arrays
+      const allKeys = [...productionKeys, ...sandboxKeys];
+      
       console.log('Chaves carregadas:', allKeys);
       setKeys(allKeys);
     } catch (error) {

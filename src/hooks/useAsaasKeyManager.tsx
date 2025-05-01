@@ -4,7 +4,8 @@ import { AsaasApiKey, AsaasEnvironment } from '@/services/asaas/types';
 import { 
   getActiveApiKey, 
   getAllApiKeys, 
-  setActiveKey as setActiveKeyApi 
+  setActiveKey as setActiveKeyApi,
+  toggleKeyStatus 
 } from '@/services/asaas/keyService';
 
 /**
