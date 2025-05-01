@@ -4,10 +4,10 @@ import { useToast } from '@/hooks/use-toast';
 import { 
   AsaasApiKey, 
   getActiveApiKey, 
-  updateActiveKey, 
-  listApiKeys, 
+  setActiveKey as updateActiveKey, 
+  getAllApiKeys as listApiKeys, 
   toggleKeyStatus 
-} from '@/services/asaasKeyManager';
+} from '@/services/asaas/keyService';
 import { AsaasEnvironment } from '@/config/asaas';
 
 interface UseAsaasKeyManagerProps {

@@ -1,6 +1,20 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { AsaasApiKey, AsaasEnvironment, ApiTestResult } from './types';
+import { AsaasEnvironment, ApiTestResult } from './types';
+
+/**
+ * Estrutura de uma chave API do Asaas
+ */
+export interface AsaasApiKey {
+  id: number;
+  key_name: string;
+  api_key: string;
+  is_active: boolean;
+  is_sandbox: boolean;
+  priority: number;
+  created_at: string;
+  updated_at: string;
+}
 
 /**
  * Obtém a chave API ativa para um ambiente específico
