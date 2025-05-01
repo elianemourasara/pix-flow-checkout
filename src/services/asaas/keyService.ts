@@ -1,309 +1,200 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { AsaasApiKey } from './types';
-import { trackKeyError } from './keyStatisticsService';
-
-// Variável para cache temporal das chaves
-let keyCache: {
-  sandbox: AsaasApiKey | null;
-  production: AsaasApiKey | null;
-  timestamp: number;
-} = {
-  sandbox: null,
-  production: null,
-  timestamp: 0
-};
-
-// Tempo de expiração do cache (5 minutos)
-const CACHE_EXPIRY_MS = 5 * 60 * 1000;
+import { AsaasApiKey, AsaasEnvironment, ApiTestResult } from './types';
 
 /**
- * Obtém a chave API ativa com base no ambiente (sandbox ou produção)
+ * Obtém a chave API ativa para um ambiente específico
+ * @param isSandbox Se deve buscar chave para ambiente sandbox
+ * @returns A chave API ativa ou null se não encontrada
  */
-export const getActiveApiKey = async (isSandbox: boolean): Promise<AsaasApiKey | null> => {
+export async function getActiveApiKey(isSandbox: boolean): Promise<AsaasApiKey | null> {
   try {
-    // Verificar cache
-    const now = Date.now();
-    if (now - keyCache.timestamp < CACHE_EXPIRY_MS) {
-      const cachedKey = isSandbox ? keyCache.sandbox : keyCache.production;
-      if (cachedKey) {
-        console.log(`Usando chave ${isSandbox ? 'sandbox' : 'produção'} do cache: ${cachedKey.key_name}`);
-        return cachedKey;
-      }
-    }
-    
-    console.log(`Buscando chave ${isSandbox ? 'sandbox' : 'produção'} ativa no banco de dados`);
-    
-    // Primeiro, verificamos se há uma chave explicitamente configurada como ativa
-    const { data: config, error: configError } = await supabase
-      .from('asaas_config')
-      .select('active_key_id, sandbox')
-      .maybeSingle();
-      
-    if (configError) {
-      console.error('Erro ao buscar configuração Asaas:', configError);
-      throw configError;
-    }
-    
-    // Verificar se o modo sandbox definido na configuração corresponde ao solicitado
-    const configSandbox = config?.sandbox ?? true;
-    const activeKeyId = config?.active_key_id;
-    
-    console.log(`Configuração do sistema: sandbox=${configSandbox}, chave ativa ID=${activeKeyId || 'não definida'}`);
-    
-    // Verificar se o modo de ambiente solicitado é compatível com a configuração global
-    if (configSandbox !== isSandbox) {
-      console.warn(`Atenção: Solicitação de chave ${isSandbox ? 'sandbox' : 'produção'} não corresponde à configuração do sistema (${configSandbox ? 'sandbox' : 'produção'})`);
-      // Se a configuração global estiver definida para produção, mas pediram sandbox, respeitamos a solicitação mas logamos
-      // O mesmo para o caso contrário
-    }
-    
-    // Se temos um ID de chave ativa, buscamos essa chave específica
-    if (activeKeyId) {
-      const { data: activeKey, error: activeKeyError } = await supabase
-        .from('asaas_api_keys')
-        .select('*')
-        .eq('id', activeKeyId)
-        .eq('is_sandbox', isSandbox)
-        .eq('is_active', true)
-        .maybeSingle();
-        
-      if (!activeKeyError && activeKey) {
-        console.log(`Usando chave API ativa por ID (ID: ${activeKey.id}, Nome: ${activeKey.key_name})`);
-        
-        // Atualizar cache
-        if (isSandbox) {
-          keyCache.sandbox = activeKey;
-        } else {
-          keyCache.production = activeKey;
-        }
-        keyCache.timestamp = now;
-        
-        return activeKey;
-      } else {
-        console.log(`Chave ativa configurada (ID: ${activeKeyId}) não encontrada ou não é do tipo ${isSandbox ? 'sandbox' : 'produção'}, buscando por prioridade...`);
-      }
-    }
-    
-    // Caso contrário, buscamos a chave ativa de maior prioridade para o ambiente
-    const { data, error } = await supabase
+    // Buscar chaves ativas para o ambiente especificado, ordenadas por prioridade
+    const { data: keys, error } = await supabase
       .from('asaas_api_keys')
       .select('*')
-      .eq('is_active', true)
       .eq('is_sandbox', isSandbox)
-      .order('priority')
-      .limit(1)
-      .maybeSingle();
+      .eq('is_active', true)
+      .order('priority', { ascending: true });
       
     if (error) {
-      console.error('Erro ao buscar chave por prioridade:', error);
-      throw error;
-    }
-    
-    if (data) {
-      console.log(`Usando chave API por prioridade (ID: ${data.id}, Nome: ${data.key_name})`);
-      
-      // Atualizar cache
-      if (isSandbox) {
-        keyCache.sandbox = data;
-      } else {
-        keyCache.production = data;
-      }
-      keyCache.timestamp = now;
-    } else {
-      console.warn(`Nenhuma chave ${isSandbox ? 'sandbox' : 'produção'} ativa encontrada`);
-    }
-    
-    return data;
-  } catch (error) {
-    console.error('Error fetching active API key:', error);
-    return null;
-  }
-};
-
-export const getNextApiKey = async (currentKeyId: number, isSandbox: boolean): Promise<AsaasApiKey | null> => {
-  try {
-    console.log(`Buscando próxima chave após falha da chave ID: ${currentKeyId}`);
-    
-    const { data, error } = await supabase
-      .rpc('get_next_active_key', { 
-        current_key_id: currentKeyId, 
-        is_sandbox_mode: isSandbox 
-      });
-      
-    if (error) {
-      console.error('Erro ao buscar próxima chave:', error);
-      throw error;
-    }
-    
-    if (!data) {
-      console.log('Nenhuma chave alternativa disponível');
+      console.error('Erro ao buscar chaves API ativas:', error);
       return null;
     }
     
-    // Fetch the complete key data
-    const { data: keyData, error: keyError } = await supabase
-      .from('asaas_api_keys')
-      .select('*')
-      .eq('id', data)
-      .single();
-      
-    if (keyError) {
-      console.error('Erro ao buscar dados da próxima chave:', keyError);
-      throw keyError;
+    // Retornar a chave de maior prioridade (menor número)
+    if (keys && keys.length > 0) {
+      return keys[0] as AsaasApiKey;
     }
     
-    console.log(`Alternando para próxima chave (ID: ${keyData.id}, Nome: ${keyData.key_name})`);
-    
-    // Atualizar o cache
-    const now = Date.now();
-    if (isSandbox) {
-      keyCache.sandbox = keyData;
-    } else {
-      keyCache.production = keyData;
-    }
-    keyCache.timestamp = now;
-    
-    return keyData;
-  } catch (err) {
-    const error = err as Error;
-    console.error('Error getting next API key:', error);
-    trackKeyError(currentKeyId, error.message || 'Erro desconhecido', {});
+    return null;
+  } catch (error) {
+    console.error('Erro ao buscar chave API:', error);
     return null;
   }
-};
+}
 
-export const updateActiveKey = async (keyId: number): Promise<void> => {
+/**
+ * Obtém todas as chaves API para um ambiente específico
+ * @param isSandbox Se deve buscar chaves para ambiente sandbox
+ * @returns Lista de chaves API ou array vazio
+ */
+export async function getAllApiKeys(isSandbox: boolean): Promise<AsaasApiKey[]> {
   try {
-    // Primeiro, obter informações sobre a chave para saber se é sandbox ou produção
-    const { data: keyData, error: keyError } = await supabase
+    const { data: keys, error } = await supabase
       .from('asaas_api_keys')
-      .select('is_sandbox')
+      .select('*')
+      .eq('is_sandbox', isSandbox)
+      .order('priority', { ascending: true });
+      
+    if (error) {
+      console.error('Erro ao buscar chaves API:', error);
+      return [];
+    }
+    
+    return keys as AsaasApiKey[];
+  } catch (error) {
+    console.error('Erro ao buscar chaves API:', error);
+    return [];
+  }
+}
+
+/**
+ * Ativa uma chave API específica
+ * @param keyId ID da chave a ser ativada
+ * @returns true se a operação foi bem-sucedida
+ */
+export async function setActiveKey(keyId: number): Promise<boolean> {
+  try {
+    // Obter a chave para saber se é sandbox ou produção
+    const { data: key, error: keyError } = await supabase
+      .from('asaas_api_keys')
+      .select('*')
       .eq('id', keyId)
       .single();
       
-    if (keyError) {
-      console.error('Erro ao verificar tipo da chave:', keyError);
-      throw keyError;
+    if (keyError || !key) {
+      console.error('Erro ao buscar chave:', keyError);
+      return false;
     }
     
-    // Agora atualizamos a configuração global
+    // Atualizar a chave atual para ativa e todas as outras do mesmo ambiente para inativas
     const { error } = await supabase
-      .from('asaas_config')
-      .update({ 
-        active_key_id: keyId,
-        // Atualiza também o modo sandbox para corresponder à chave selecionada
-        sandbox: keyData.is_sandbox
-      })
-      .eq('id', 1);
+      .from('asaas_api_keys')
+      .update({ is_active: false })
+      .eq('is_sandbox', key.is_sandbox);
       
     if (error) {
-      console.error('Erro ao atualizar chave ativa:', error);
-      throw error;
+      console.error('Erro ao desativar chaves existentes:', error);
+      return false;
     }
     
-    console.log(`Chave ativa atualizada para ID: ${keyId} (Modo: ${keyData.is_sandbox ? 'sandbox' : 'produção'})`);
+    // Ativar a chave selecionada
+    const { error: updateError } = await supabase
+      .from('asaas_api_keys')
+      .update({ is_active: true })
+      .eq('id', keyId);
+      
+    if (updateError) {
+      console.error('Erro ao ativar chave:', updateError);
+      return false;
+    }
     
-    // Limpar cache para forçar recarregamento
-    keyCache = {
-      sandbox: null,
-      production: null,
-      timestamp: 0
-    };
+    return true;
   } catch (error) {
-    console.error('Error updating active key:', error);
-    throw error;
+    console.error('Erro ao ativar chave API:', error);
+    return false;
   }
-};
+}
 
-export const addApiKey = async (
-  keyName: string, 
+/**
+ * Adiciona uma nova chave API
+ * @param name Nome descritivo da chave
+ * @param apiKey Chave API
+ * @param isSandbox Se é uma chave sandbox
+ * @param priority Prioridade da chave (menor = maior prioridade)
+ * @returns A chave criada ou null se falhou
+ */
+export async function addApiKey(
+  name: string, 
   apiKey: string, 
-  isSandbox: boolean,
-  priority: number
-): Promise<AsaasApiKey | null> => {
+  isSandbox: boolean, 
+  priority: number = 1
+): Promise<AsaasApiKey | null> {
+  // Sanitizar a chave para remover espaços, quebras de linha, etc.
+  const sanitizedKey = apiKey.trim();
+  
   try {
     const { data, error } = await supabase
       .from('asaas_api_keys')
-      .insert([{ 
-        key_name: keyName,
-        api_key: apiKey,
+      .insert({
+        key_name: name,
+        api_key: sanitizedKey,
         is_sandbox: isSandbox,
         priority: priority,
         is_active: true
-      }])
+      })
       .select()
       .single();
       
-    if (error) throw error;
+    if (error) {
+      console.error('Erro ao adicionar chave API:', error);
+      return null;
+    }
     
-    // Limpar cache para forçar recarregamento
-    keyCache = {
-      sandbox: null,
-      production: null,
-      timestamp: 0
-    };
-    
-    return data;
+    return data as AsaasApiKey;
   } catch (error) {
-    console.error('Error adding API key:', error);
+    console.error('Erro ao adicionar chave API:', error);
     return null;
   }
-};
+}
 
-export const listApiKeys = async (isSandbox: boolean | null = null): Promise<AsaasApiKey[]> => {
+/**
+ * Testa uma chave API do Asaas
+ * @param apiKey Chave API a ser testada
+ * @param isSandbox Se deve testar em ambiente sandbox
+ * @returns Resultado do teste
+ */
+export async function testApiKey(apiKey: string, isSandbox: boolean): Promise<ApiTestResult> {
   try {
-    let query = supabase
-      .from('asaas_api_keys')
-      .select('*');
+    const baseUrl = isSandbox 
+      ? 'https://sandbox.asaas.com/api/v3'
+      : 'https://api.asaas.com/api/v3';
       
-    if (isSandbox !== null) {
-      query = query.eq('is_sandbox', isSandbox);
+    const url = `${baseUrl}/status`;
+    
+    // Sanitizar a chave para remover espaços, quebras de linha, etc.
+    const sanitizedKey = apiKey.trim();
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${sanitizedKey}`
+      }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      return {
+        success: true,
+        status: response.status,
+        data
+      };
+    } else {
+      const errorText = await response.text();
+      return {
+        success: false,
+        status: response.status,
+        message: `Erro na API: ${response.statusText}`,
+        error: errorText
+      };
     }
-    
-    query = query.order('priority');
-    
-    const { data, error } = await query;
-    
-    if (error) {
-      console.error('Error in listApiKeys:', error);
-      throw error;
-    }
-    
-    return data || [];
-  } catch (error) {
-    console.error('Error listing API keys:', error);
-    return [];
-  }
-};
-
-export const toggleKeyStatus = async (keyId: number, isActive: boolean): Promise<void> => {
-  try {
-    const { error } = await supabase
-      .from('asaas_api_keys')
-      .update({ is_active: isActive })
-      .eq('id', keyId);
-      
-    if (error) throw error;
-    
-    // Limpar cache para forçar recarregamento
-    keyCache = {
-      sandbox: null,
-      production: null,
-      timestamp: 0
+  } catch (error: any) {
+    return {
+      success: false,
+      message: 'Erro ao testar chave API',
+      error: error.message
     };
-  } catch (error) {
-    console.error('Error toggling key status:', error);
-    throw error;
   }
-};
-
-// Função para limpar o cache manualmente
-export const clearKeyCache = (): void => {
-  keyCache = {
-    sandbox: null,
-    production: null,
-    timestamp: 0
-  };
-  console.log('Cache de chaves API limpo manualmente');
-};
+}
