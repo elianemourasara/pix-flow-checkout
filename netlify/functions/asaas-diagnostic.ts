@@ -6,7 +6,9 @@ import { getAsaasApiBaseUrl } from './asaas/get-asaas-api-base-url';
 import { 
   runComprehensiveDiagnostics, 
   diagnoseDependencyIssues,
-  analyzeApiKey 
+  analyzeApiKey,
+  sanitizeApiKey,
+  testMinimalHttpCall
 } from './asaas/diagnostics';
 
 const corsHeaders = {
@@ -49,7 +51,7 @@ const handler: Handler = async (event: HandlerEvent) => {
     console.log(`[asaas-diagnostic] Modo de operação: ${useProduction ? 'PRODUÇÃO' : 'SANDBOX'}`);
     
     // Diagnóstico de dependências e ambiente
-    console.log('[asaas-diagnostic] Iniciando diagnóstico de dependências...');
+    console.log('[asaas-diagnostic] Iniciando diagnóstico de dependências e ambiente...');
     const dependencyDiagnostics = await diagnoseDependencyIssues();
     console.log('[asaas-diagnostic] Resultado do diagnóstico de dependências:', dependencyDiagnostics);
     
@@ -84,6 +86,14 @@ const handler: Handler = async (event: HandlerEvent) => {
       lastFour: keyAnalysis.lastFour
     }, null, 2));
     
+    // Teste rápido com HTTP nativo para diagnóstico simples
+    console.log('[asaas-diagnostic] Realizando teste HTTP nativo simples...');
+    const minimalTest = await testMinimalHttpCall(sanitizeApiKey(apiKey), isSandbox);
+    console.log('[asaas-diagnostic] Resultado do teste HTTP simples:', JSON.stringify({
+      success: minimalTest.success,
+      status: minimalTest.status
+    }));
+    
     // Executar diagnóstico completo
     console.log('[asaas-diagnostic] Executando diagnóstico completo...');
     const diagnosticResults = await runComprehensiveDiagnostics(apiKey, isSandbox);
@@ -101,6 +111,20 @@ const handler: Handler = async (event: HandlerEvent) => {
     const { data: asaasConfig, error: configError } = await supabase
       .from('asaas_config')
       .select('*');
+      
+    // Verificar logs recentes de webhooks para diagnóstico
+    const { data: recentWebhooks, error: webhooksError } = await supabase
+      .from('asaas_webhook_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(5);
+      
+    // Verificar logs de pagamentos recentes para diagnóstico
+    const { data: recentPayments, error: paymentsError } = await supabase
+      .from('asaas_payments')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(5);
     
     return {
       statusCode: 200,
@@ -117,7 +141,13 @@ const handler: Handler = async (event: HandlerEvent) => {
           ...keyAnalysis,
           // Remover a chave completa por segurança
           firstEight: keyAnalysis.firstEight,
-          lastFour: keyAnalysis.lastFour
+          lastFour: keyAnalysis.lastFour,
+          recommendedAction: keyAnalysis.recommendedAction
+        },
+        minimalHttpTest: {
+          success: minimalTest.success,
+          status: minimalTest.status,
+          error: minimalTest.error
         },
         diagnosticResults: {
           summary: diagnosticResults.summary,
@@ -152,7 +182,23 @@ const handler: Handler = async (event: HandlerEvent) => {
           } : null,
           apiKeysError: apiKeysError ? apiKeysError.message : null,
           asaasConfig: asaasConfig || null,
-          configError: configError ? configError.message : null
+          configError: configError ? configError.message : null,
+          recentWebhooks: recentWebhooks ? recentWebhooks.map(w => ({
+            id: w.id,
+            paymentId: w.payment_id,
+            status: w.status,
+            eventType: w.event_type,
+            created_at: w.created_at,
+          })) : null,
+          webhooksError: webhooksError ? webhooksError.message : null,
+          recentPayments: recentPayments ? recentPayments.map(p => ({
+            id: p.id,
+            paymentId: p.payment_id,
+            status: p.status,
+            created_at: p.created_at,
+            amount: p.amount
+          })) : null,
+          paymentsError: paymentsError ? paymentsError.message : null
         }
       }),
     };

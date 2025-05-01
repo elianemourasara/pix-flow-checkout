@@ -1,430 +1,194 @@
-
 import { supabase } from './supabase-client';
-import fetch from 'node-fetch';
-import * as https from 'https';
+import { getAsaasApiBaseUrl } from './get-asaas-api-base-url';
+import { sanitizeApiKey } from './diagnostics';
 
 /**
- * Cache em memória para chaves API
+ * Obtém a chave da API do Asaas com base no modo de operação (produção ou sandbox)
+ * @param isSandbox Indica se deve buscar a chave sandbox ou produção
+ * @returns Chave da API ou null se não encontrada
  */
-interface KeyCache {
-  sandbox: string | null;
-  production: string | null;
-  timestamp: number;
-}
-
-// Cache com tempo de expiração de 5 minutos
-const KEY_CACHE_EXPIRY = 5 * 60 * 1000;
-let keyCache: KeyCache = {
-  sandbox: null,
-  production: null,
-  timestamp: 0
-};
-
-/**
- * Função para sanitizar chaves API, removendo espaços e caracteres problemáticos
- */
-function sanitizeApiKey(key: string): string {
-  if (!key) return '';
-  
-  // Remove espaços no início e fim
-  let sanitized = key.trim();
-  
-  // Remove quebras de linha ou tabs que podem ter sido acidentalmente copiados
-  sanitized = sanitized.replace(/[\n\r\t]/g, '');
-  
-  // Verifica caracteres Unicode que não são visíveis mas poderiam estar presentes
-  const invisibleChars = /[\u200B-\u200D\uFEFF]/g;
-  if (invisibleChars.test(sanitized)) {
-    console.warn('[sanitizeApiKey] ALERTA: Caracteres unicode invisíveis detectados e removidos');
-    sanitized = sanitized.replace(invisibleChars, '');
-  }
-  
-  // Remover aspas que possam ter sido copiadas junto com a chave
-  if (sanitized.startsWith('"') || sanitized.endsWith('"')) {
-    console.warn('[sanitizeApiKey] ALERTA: Aspas detectadas e removidas da chave');
-    sanitized = sanitized.replace(/"/g, '');
-  }
-  
-  if (sanitized.startsWith("'") || sanitized.endsWith("'")) {
-    console.warn('[sanitizeApiKey] ALERTA: Aspas simples detectadas e removidas da chave');
-    sanitized = sanitized.replace(/'/g, '');
-  }
-  
-  // Remove espaços internos que possam existir
-  if (sanitized.includes(' ')) {
-    console.warn('[sanitizeApiKey] ALERTA: Espaços internos detectados na chave API e removidos');
-    sanitized = sanitized.replace(/\s/g, '');
-  }
-  
-  // Verifica caracteres problemáticos para autenticação
-  const problematicChars = /["'\\<>]/g; 
-  if (problematicChars.test(sanitized)) {
-    console.warn('[sanitizeApiKey] ALERTA: Caracteres problemáticos encontrados na chave API');
-  }
-  
-  return sanitized;
-}
-
-/**
- * Função robusta para obter chave da API Asaas
- * Implementa cache em memória e mecanismo de fallback
- * 
- * IMPORTANTE: Esta função respeita a variável de ambiente USE_ASAAS_PRODUCTION
- * Se USE_ASAAS_PRODUCTION=true, sempre retornará uma chave de produção
- * Se USE_ASAAS_PRODUCTION=false ou não definida, sempre retornará uma chave sandbox
- */
-export async function getAsaasApiKey(isSandboxParam?: boolean): Promise<string | null> {
-  console.log('==================== INÍCIO DA OPERAÇÃO getAsaasApiKey ====================');
-  
-  // Determinar se devemos usar sandbox baseado na variável de ambiente
-  // Esta configuração tem precedência sobre o parâmetro
-  const useProductionEnvRaw = process.env.USE_ASAAS_PRODUCTION;
-  const useProductionEnv = useProductionEnvRaw === 'true';
-  
-  console.log(`[getAsaasApiKey] Valor bruto da variável USE_ASAAS_PRODUCTION: "${useProductionEnvRaw}"`);
-  console.log(`[getAsaasApiKey] Interpretado como: ${useProductionEnv ? 'PRODUÇÃO' : 'SANDBOX'}`);
-  
-  // Se a variável de ambiente está definida, usamos ela para determinar o ambiente
-  // Caso contrário, usamos o parâmetro fornecido ou padrão para sandbox
-  const isSandbox = useProductionEnv ? false : (isSandboxParam !== undefined ? isSandboxParam : true);
-  
-  console.log(`[getAsaasApiKey] Ambiente determinado pelo USE_ASAAS_PRODUCTION=${useProductionEnvRaw}`);
-  console.log(`[getAsaasApiKey] Valor de useProductionEnv: ${useProductionEnv}`);
-  console.log(`[getAsaasApiKey] Obtendo chave Asaas para ambiente ${isSandbox ? 'sandbox' : 'produção'}`);
+export async function getAsaasApiKey(isSandbox: boolean): Promise<string | null> {
+  // Log para mostrar se está buscando a chave sandbox ou produção
+  console.log(`[getAsaasApiKey] Buscando chave API ${isSandbox ? 'SANDBOX' : 'PRODUÇÃO'}...`);
   
   try {
-    // Verificar cache
-    const now = Date.now();
-    if (now - keyCache.timestamp < KEY_CACHE_EXPIRY) {
-      const cachedKey = isSandbox ? keyCache.sandbox : keyCache.production;
-      if (cachedKey) {
-        console.log(`[getAsaasApiKey] Usando chave ${isSandbox ? 'sandbox' : 'produção'} do cache`);
+    // 1. Primeiro tenta obter uma chave ativa da tabela asaas_api_keys
+    console.log(`[getAsaasApiKey] Consultando tabela asaas_api_keys para ambiente ${isSandbox ? 'sandbox' : 'produção'}...`);
+    const { data: apiKeys, error: apiKeyError } = await supabase
+      .from('asaas_api_keys')
+      .select('*')
+      .eq('is_sandbox', isSandbox)
+      .eq('is_active', true)
+      .order('priority', { ascending: true });
+    
+    if (apiKeyError) {
+      console.error('[getAsaasApiKey] Erro ao consultar tabela asaas_api_keys:', apiKeyError);
+      // Continua para o próximo método de obtenção
+    } else if (apiKeys && apiKeys.length > 0) {
+      // 1.1 Encontrou chaves na tabela, usar a de maior prioridade (menor número)
+      const key = apiKeys[0];
+      console.log(`[getAsaasApiKey] Encontrada chave ID ${key.id} (${key.key_name}) na tabela asaas_api_keys`);
+      
+      // Sanitizar e retornar a chave
+      const sanitizedKey = sanitizeApiKey(key.api_key);
+      
+      // Log para debug (apenas primeiros e últimos caracteres por segurança)
+      console.log(`[getAsaasApiKey] Retornando chave sanitizada: ${sanitizedKey.substring(0, 8)}...${sanitizedKey.substring(sanitizedKey.length - 4)}`);
+      return sanitizedKey;
+    }
+
+    // 2. Se não encontrou na tabela específica, tenta na tabela de configuração geral
+    console.log('[getAsaasApiKey] Nenhuma chave encontrada na tabela asaas_api_keys, consultando tabela asaas_config...');
+    const { data: configData, error: configError } = await supabase
+      .from('asaas_config')
+      .select('*')
+      .eq('id', 1)
+      .maybeSingle();
+    
+    if (configError) {
+      console.error('[getAsaasApiKey] Erro ao consultar tabela asaas_config:', configError);
+      return null;
+    }
+
+    if (configData) {
+      // 2.1 Verifica qual campo usar com base no modo
+      const keyField = isSandbox ? 'sandbox_key' : 'production_key';
+      const apiKey = configData[keyField];
+      
+      if (apiKey) {
+        console.log(`[getAsaasApiKey] Encontrada chave em asaas_config (campo ${keyField})`);
         
-        // Sanitizar a chave antes de retornar, mesmo do cache
-        const sanitizedKey = sanitizeApiKey(cachedKey);
+        // Sanitizar e retornar a chave
+        const sanitizedKey = sanitizeApiKey(apiKey);
         
-        // Exibir primeiros caracteres da chave para validação nos logs
-        console.log(`[getAsaasApiKey] Chave em cache (primeiros caracteres): ${sanitizedKey.substring(0, 8)}...`);
-        console.log(`[getAsaasApiKey] Chave em cache (últimos caracteres): ...${sanitizedKey.substring(sanitizedKey.length - 4)}`);
-        console.log(`[getAsaasApiKey] Comprimento da chave em cache: ${sanitizedKey.length} caracteres`);
-        console.log('==================== FIM DA OPERAÇÃO getAsaasApiKey (do cache) ====================');
+        // Log para debug (apenas primeiros e últimos caracteres por segurança)
+        console.log(`[getAsaasApiKey] Retornando chave sanitizada: ${sanitizedKey.substring(0, 8)}...${sanitizedKey.substring(sanitizedKey.length - 4)}`);
         return sanitizedKey;
       }
     }
-    
-    // 1. Primeiro tenta obter do sistema novo (asaas_api_keys)
-    console.log('[getAsaasApiKey] Tentando obter chave do sistema novo...');
-    console.log(`[getAsaasApiKey] Parâmetros da consulta: is_active=true, is_sandbox=${isSandbox}`);
-    
-    const { data: activeKeys, error: keyError } = await supabase
-      .from('asaas_api_keys')
-      .select('*')
-      .eq('is_active', true)
-      .eq('is_sandbox', isSandbox)
-      .order('priority', { ascending: true })
-      .limit(1);
-      
-    console.log(`[getAsaasApiKey] Resultado da consulta: encontradas ${activeKeys ? activeKeys.length : 0} chaves`);
-    
-    if (!keyError && activeKeys && activeKeys.length > 0) {
-      // Exibir informações da chave para validação
-      console.log(`[getAsaasApiKey] Chave obtida do sistema novo: ${activeKeys[0].key_name} (ID: ${activeKeys[0].id})`);
-      console.log(`[getAsaasApiKey] is_active=${activeKeys[0].is_active}, is_sandbox=${activeKeys[0].is_sandbox}`);
-      
-      const rawKey = activeKeys[0].api_key;
-      
-      // Verificar se a chave é uma string válida
-      if (typeof rawKey !== 'string') {
-        console.error(`[getAsaasApiKey] ERRO CRÍTICO: A chave não é uma string válida, é um ${typeof rawKey}`);
-        if (rawKey === null) {
-          console.error('[getAsaasApiKey] A chave é NULL');
-        } else if (rawKey === undefined) {
-          console.error('[getAsaasApiKey] A chave é undefined');
-        }
-        throw new Error('Formato de chave API inválido');
-      }
-      
-      // Sanitizar a chave antes de uso
-      const sanitizedKey = sanitizeApiKey(rawKey);
-      
-      console.log(`[getAsaasApiKey] Primeiros caracteres da chave: ${sanitizedKey.substring(0, 8)}...`);
-      console.log(`[getAsaasApiKey] Últimos caracteres da chave: ...${sanitizedKey.substring(sanitizedKey.length - 4)}`);
-      console.log(`[getAsaasApiKey] Comprimento da chave: ${sanitizedKey.length} caracteres`);
-      console.log(`[getAsaasApiKey] Comprimento original: ${rawKey.length}, Após sanitização: ${sanitizedKey.length}`);
-      
-      // Verificar formato básico da chave Asaas
-      if (!sanitizedKey.startsWith('$aact_')) {
-        console.error('[getAsaasApiKey] ALERTA CRÍTICO: A chave não começa com "$aact_", o que é incomum para chaves Asaas');
-      }
-      
-      // Verificar se a sanitização alterou a chave
-      if (rawKey !== sanitizedKey) {
-        console.warn('[getAsaasApiKey] ALERTA: A chave foi sanitizada, removendo caracteres problemáticos');
-        if (rawKey.length !== sanitizedKey.length) {
-          console.warn(`[getAsaasApiKey] Diferença de tamanho: ${rawKey.length - sanitizedKey.length} caracteres removidos`);
-        }
-      }
-      
-      if (sanitizedKey.length < 30) {
-        console.error('[getAsaasApiKey] ALERTA: A chave parece muito curta e pode estar incompleta');
-      }
-      
-      // Atualizar cache
-      if (isSandbox) {
-        keyCache.sandbox = sanitizedKey;
-      } else {
-        keyCache.production = sanitizedKey;
-      }
-      keyCache.timestamp = now;
-      
-      // CHAVE COMPLETA PARA DIAGNÓSTICO - REMOVER EM PRODUÇÃO
-      console.log('[getAsaasApiKey] CHAVE COMPLETA PARA DIAGNÓSTICO (REMOVER EM PRODUÇÃO):', sanitizedKey);
-      
-      // Testar a validade da chave antes de retornar
-      const keyIsValid = await testApiKey(sanitizedKey, isSandbox);
-      if (!keyIsValid) {
-        console.error('[getAsaasApiKey] ERRO: A chave API não passou no teste de validação!');
-        console.error('[getAsaasApiKey] Considere gerar uma nova chave de API no painel do Asaas.');
-        // Ainda retornamos a chave, mas agora sabemos que ela é inválida
-      } else {
-        console.log('[getAsaasApiKey] Chave API validada com sucesso!');
-      }
-      
-      console.log('==================== FIM DA OPERAÇÃO getAsaasApiKey (do DB) ====================');
-      return sanitizedKey;
-    }
-    
-    if (keyError) {
-      console.error('[getAsaasApiKey] Erro ao buscar chaves no sistema novo:', keyError);
-    } else {
-      console.log('[getAsaasApiKey] Nenhuma chave ativa encontrada no sistema novo');
-    }
-    
-    // 2. Fallback para o sistema legado
-    console.log('[getAsaasApiKey] Tentando obter chave do sistema legado...');
-    const { data: legacyConfig, error: configError } = await supabase
-      .from('asaas_config')
-      .select('sandbox_key, production_key, sandbox')
-      .single();
-      
-    if (configError) {
-      console.error('[getAsaasApiKey] Erro ao buscar configuração do sistema legado:', configError);
-      console.log('==================== FIM DA OPERAÇÃO getAsaasApiKey (com erro) ====================');
-      return null;
-    }
-    
-    // Verificar se o modo sandbox da configuração corresponde ao solicitado
-    const configSandbox = legacyConfig?.sandbox ?? true;
-    
-    if (configSandbox !== isSandbox && !useProductionEnv) {
-      console.warn(`[getAsaasApiKey] Atenção: Solicitando chave ${isSandbox ? 'sandbox' : 'produção'} mas a configuração está definida como ${configSandbox ? 'sandbox' : 'produção'}`);
-      // Se a variável de ambiente está definida, ignoramos a configuração do banco
-      if (useProductionEnvRaw === 'true') {
-        console.log('[getAsaasApiKey] Usando ambiente de PRODUÇÃO devido a variável USE_ASAAS_PRODUCTION=true');
-      }
-    }
-    
-    const legacyKey = isSandbox ? legacyConfig?.sandbox_key : legacyConfig?.production_key;
-    
-    if (!legacyKey) {
-      console.error(`[getAsaasApiKey] Chave ${isSandbox ? 'sandbox' : 'produção'} não encontrada no sistema legado`);
-      console.log('==================== FIM DA OPERAÇÃO getAsaasApiKey (não encontrada) ====================');
-      return null;
-    }
-    
-    // Sanitizar a chave antes de retornar
-    const sanitizedLegacyKey = sanitizeApiKey(legacyKey);
-    
-    // Verificar formato básico da chave legada
-    if (!sanitizedLegacyKey.startsWith('$aact_')) {
-      console.error('[getAsaasApiKey] ALERTA CRÍTICO: A chave legada não começa com "$aact_", o que é incomum para chaves Asaas');
-    }
-    
-    console.log(`[getAsaasApiKey] Chave obtida do sistema legado com sucesso (${isSandbox ? 'SANDBOX' : 'PRODUÇÃO'})`);
-    console.log(`[getAsaasApiKey] Primeiros caracteres da chave legada: ${sanitizedLegacyKey.substring(0, 8)}...`);
-    console.log(`[getAsaasApiKey] Últimos caracteres da chave legada: ...${sanitizedLegacyKey.substring(sanitizedLegacyKey.length - 4)}`);
-    console.log(`[getAsaasApiKey] Comprimento da chave legada: ${sanitizedLegacyKey.length} caracteres`);
-    console.log(`[getAsaasApiKey] Comprimento original: ${legacyKey.length}, Após sanitização: ${sanitizedLegacyKey.length}`);
-    
-    // CHAVE COMPLETA PARA DIAGNÓSTICO - REMOVER EM PRODUÇÃO
-    console.log('[getAsaasApiKey] CHAVE LEGADA COMPLETA PARA DIAGNÓSTICO (REMOVER EM PRODUÇÃO):', sanitizedLegacyKey);
-    
-    // Verificar se a sanitização alterou a chave
-    if (legacyKey !== sanitizedLegacyKey) {
-      console.warn('[getAsaasApiKey] ALERTA: A chave legada foi sanitizada, removendo caracteres problemáticos');
-      if (legacyKey.length !== sanitizedLegacyKey.length) {
-        console.warn(`[getAsaasApiKey] Diferença de tamanho: ${legacyKey.length - sanitizedLegacyKey.length} caracteres removidos`);
-      }
-    }
-    
-    // Atualizar cache
-    if (isSandbox) {
-      keyCache.sandbox = sanitizedLegacyKey;
-    } else {
-      keyCache.production = sanitizedLegacyKey;
-    }
-    keyCache.timestamp = now;
-    
-    // Testar a validade da chave antes de retornar
-    const keyIsValid = await testApiKey(sanitizedLegacyKey, isSandbox);
-    if (!keyIsValid) {
-      console.error('[getAsaasApiKey] ERRO: A chave API legada não passou no teste de validação!');
-      console.error('[getAsaasApiKey] Considere gerar uma nova chave de API no painel do Asaas.');
-      // Ainda retornamos a chave, mas agora sabemos que ela é inválida
-    } else {
-      console.log('[getAsaasApiKey] Chave API legada validada com sucesso!');
-    }
-    
-    console.log('==================== FIM DA OPERAÇÃO getAsaasApiKey (sistema legado) ====================');
-    return sanitizedLegacyKey;
+
+    console.error('[getAsaasApiKey] Nenhuma chave API encontrada para o ambiente', isSandbox ? 'SANDBOX' : 'PRODUÇÃO');
+    return null;
   } catch (error) {
-    console.error('[getAsaasApiKey] Erro ao obter chave API do Asaas:', error);
-    console.log('==================== FIM DA OPERAÇÃO getAsaasApiKey (com erro) ====================');
+    console.error('[getAsaasApiKey] Erro ao obter chave API:', error);
     return null;
   }
 }
 
 /**
- * Função para limpar o cache de chaves
- */
-export function clearKeyCache(): void {
-  keyCache = {
-    sandbox: null,
-    production: null,
-    timestamp: 0
-  };
-  console.log('Cache de chaves API limpo');
-}
-
-/**
- * Função para verificar diretamente se uma chave API é válida
- * Realiza uma chamada simples para a API do Asaas
+ * Testa se uma chave de API do Asaas é válida
+ * @param apiKey Chave de API para testar
+ * @param isSandbox Indica se deve testar contra o ambiente sandbox
+ * @returns true se a chave for válida
  */
 export async function testApiKey(apiKey: string, isSandbox: boolean): Promise<boolean> {
-  console.log('==================== INÍCIO DO TESTE DE CHAVE API ====================');
-  const apiBaseUrl = isSandbox ? 'https://sandbox.asaas.com/api/v3' : 'https://api.asaas.com/api/v3';
-  const endpoint = `${apiBaseUrl}/customers?limit=1`;
-  
-  // Verificar se a chave tem o formato esperado
-  if (!apiKey.startsWith('$aact_')) {
-    console.warn(`[testApiKey] ALERTA: A chave não começa com "$aact_", formato possivelmente inválido`);
+  if (!apiKey) {
+    console.error('[testApiKey] Chave API inválida (vazia ou nula)');
+    return false;
   }
-  
+
   try {
-    console.log(`[testApiKey] Testando chave API no ambiente ${isSandbox ? 'sandbox' : 'produção'}`);
-    console.log(`[testApiKey] URL: ${endpoint}`);
-    console.log(`[testApiKey] Primeiros caracteres da chave: ${apiKey.substring(0, 8)}...`);
-    console.log(`[testApiKey] Últimos caracteres da chave: ...${apiKey.substring(apiKey.length - 4)}`);
-    console.log(`[testApiKey] Comprimento total da chave: ${apiKey.length}`);
+    console.log('[testApiKey] Testando chave API com fetch...');
     
-    // Verificamos se há espaços na chave
-    if (apiKey.includes(' ')) {
-      console.warn('[testApiKey] ALERTA: A chave ainda contém espaços, o que pode causar falhas de autenticação');
-    }
+    // Sanitizar a chave antes do teste
+    const sanitizedKey = sanitizeApiKey(apiKey);
     
-    const authHeader = `Bearer ${apiKey}`;
-    console.log(`[testApiKey] Authorization header (formato): Bearer ${apiKey.substring(0, 8)}...${apiKey.substring(apiKey.length - 4)}`);
-    console.log(`[testApiKey] Comprimento total do header: ${authHeader.length}`);
+    const apiBaseUrl = getAsaasApiBaseUrl(isSandbox);
+    const url = `${apiBaseUrl}/customers?limit=1`;
     
-    // Criar um agente HTTPS com configurações especiais
-    const agent = new https.Agent({
-      rejectUnauthorized: true, // Requerido para HTTPS
-      keepAlive: true,
-      timeout: 30000
-    });
+    console.log(`[testApiKey] URL: ${url}`);
+    console.log(`[testApiKey] Authorization: Bearer ${sanitizedKey.substring(0, 8)}...${sanitizedKey.substring(sanitizedKey.length - 4)}`);
     
-    // Usar fetch com novo agente e configurações
-    const response = await fetch(endpoint, {
+    const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': authHeader,
-        'User-Agent': 'Lovable/Netlify Function'
-      },
-      // @ts-ignore - Tipagem incompatível entre node-fetch e fetch nativo
-      agent,
-      timeout: 30000
+        'Authorization': `Bearer ${sanitizedKey}`,
+        'User-Agent': 'Mozilla/5.0 Asaas-Integration-Test'
+      }
     });
-    
-    console.log(`[testApiKey] Status da resposta: ${response.status} ${response.statusText}`);
-    
-    // Mostrar todos os headers da resposta para diagnóstico
-    console.log('[testApiKey] Headers da resposta:', JSON.stringify(Object.fromEntries([...response.headers]), null, 2));
-    
-    // Mostrar corpo da resposta para diagnóstico
-    const responseText = await response.text();
-    console.log('[testApiKey] Corpo da resposta:', responseText);
-    
+
     if (response.ok) {
-      console.log('[testApiKey] Chave API válida!');
-      console.log('==================== FIM DO TESTE DE CHAVE API (válida) ====================');
+      console.log('[testApiKey] Teste bem-sucedido - Status:', response.status);
       return true;
     } else {
-      console.error('[testApiKey] Erro na validação da chave API:', response.status, response.statusText);
-      console.log('==================== FIM DO TESTE DE CHAVE API (inválida) ====================');
+      console.error(`[testApiKey] Teste falhou - Status: ${response.status}`);
+      
+      // Log detalhado para diagnóstico
+      try {
+        const responseText = await response.text();
+        console.error('[testApiKey] Resposta de erro:', responseText);
+      } catch (e) {
+        console.error('[testApiKey] Não foi possível ler o corpo da resposta:', e);
+      }
+      
       return false;
     }
   } catch (error) {
     console.error('[testApiKey] Erro ao testar chave API:', error);
-    console.log('==================== FIM DO TESTE DE CHAVE API (com erro) ====================');
     return false;
   }
 }
 
 /**
- * Função para diagnóstico: executa um teste completo com cURL simulado
- * para validar a chave em ambiente externo
+ * Simula um teste cURL para diagnóstico mais preciso
+ * @param apiKey Chave API para testar
+ * @param isSandbox Indica se deve usar ambiente sandbox
+ * @returns Resultado do teste
  */
 export async function simulateCurlTest(apiKey: string, isSandbox: boolean): Promise<{
-  success: boolean;
-  status?: number;
-  response?: string;
-  error?: string;
+  success: boolean,
+  status?: number,
+  response?: string,
+  error?: string
 }> {
+  if (!apiKey) {
+    return {
+      success: false,
+      error: 'Chave API não fornecida'
+    };
+  }
+  
   try {
-    const apiBaseUrl = isSandbox ? 'https://sandbox.asaas.com/api/v3' : 'https://api.asaas.com/api/v3';
-    const endpoint = `${apiBaseUrl}/status`;
+    console.log('[simulateCurlTest] Simulando teste cURL com fetch nativo...');
     
-    console.log(`[simulateCurlTest] Testando chave como se fosse cURL para: ${endpoint}`);
-    console.log(`[simulateCurlTest] Authorization: Bearer ${apiKey.substring(0, 8)}...`);
+    // Usar a chave sanitizada
+    const sanitizedKey = sanitizeApiKey(apiKey);
     
-    // Criar um agente HTTPS com configurações especiais
-    const agent = new https.Agent({
-      rejectUnauthorized: true,
-      keepAlive: true,
-      timeout: 30000
-    });
+    const apiBaseUrl = getAsaasApiBaseUrl(isSandbox);
+    const url = `${apiBaseUrl}/status`;
     
-    // Simular um cURL request com configurações adicionais
-    const response = await fetch(endpoint, {
+    // Usar fetch nativo com configurações específicas
+    const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-        'User-Agent': 'Mozilla/5.0 Lovable/Netlify',
-        'Accept': '*/*',
-        'Cache-Control': 'no-cache'
-      },
-      // @ts-ignore - Tipagem incompatível entre node-fetch e fetch nativo
-      agent,
-      timeout: 30000
+        'Authorization': `Bearer ${sanitizedKey}`,
+        'User-Agent': 'curl/7.64.1' // Simular um User-Agent curl
+      }
     });
     
-    const responseText = await response.text();
-    
-    // Logar headers completos para diagnóstico
-    console.log('[simulateCurlTest] Response headers:', JSON.stringify(Object.fromEntries([...response.headers]), null, 2));
+    let responseText = '';
+    try {
+      responseText = await response.text();
+    } catch (e) {
+      console.warn('[simulateCurlTest] Não foi possível ler a resposta como texto:', e);
+    }
     
     return {
       success: response.ok,
       status: response.status,
       response: responseText
     };
-  } catch (error) {
-    console.error('[simulateCurlTest] Erro na simulação de cURL:', error);
+  } catch (error: any) {
+    console.error('[simulateCurlTest] Erro no teste cURL:', error);
+    
     return {
       success: false,
       error: error.message
     };
   }
 }
+
+// Exporta funções principais
+export { getAsaasApiBaseUrl };

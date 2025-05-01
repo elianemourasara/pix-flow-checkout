@@ -105,6 +105,33 @@ export const checkPaymentStatus = async (paymentId: string): Promise<PaymentStat
 };
 
 /**
+ * Sanitiza dados de entrada antes de enviar para a API
+ * @param data Dados originais
+ * @returns Dados sanitizados 
+ */
+const sanitizeInputData = (data: any) => {
+  // Copia o objeto para não modificar o original
+  const sanitized = { ...data };
+  
+  // Sanitiza campos de texto
+  if (sanitized.name) sanitized.name = sanitized.name.trim();
+  if (sanitized.email) sanitized.email = sanitized.email.trim();
+  if (sanitized.description) sanitized.description = sanitized.description.trim();
+  
+  // Sanitiza CPF/CNPJ removendo caracteres não numéricos
+  if (sanitized.cpfCnpj) {
+    sanitized.cpfCnpj = sanitized.cpfCnpj.replace(/[^0-9]/g, '');
+  }
+  
+  // Sanitiza telefone removendo caracteres não numéricos
+  if (sanitized.phone) {
+    sanitized.phone = sanitized.phone.replace(/[^0-9]/g, '');
+  }
+  
+  return sanitized;
+};
+
+/**
  * Generates a PIX payment in Asaas
  * @param billingData Client and payment data
  * @returns Generated PIX payment data
@@ -153,19 +180,22 @@ export const generatePixPayment = async (billingData: any) => {
       throw new Error(`Campos obrigatórios faltando: ${missingFields.join(', ')}`);
     }
     
+    // Sanitize input data
+    const sanitizedData = sanitizeInputData(formattedData);
+    
     // Log data before sending to API for debugging
     console.log('Formatted data being sent to API:', {
-      name: formattedData.name,
-      cpfCnpjPartial: formattedData.cpfCnpj ? `${formattedData.cpfCnpj.substring(0, 4)}...` : 'não fornecido',
-      email: formattedData.email || 'não fornecido',
-      phone: formattedData.phone || 'não fornecido',
-      orderId: formattedData.orderId,
-      value: formattedData.value
+      name: sanitizedData.name,
+      cpfCnpjPartial: sanitizedData.cpfCnpj ? `${sanitizedData.cpfCnpj.substring(0, 4)}...` : 'não fornecido',
+      email: sanitizedData.email || 'não fornecido',
+      phone: sanitizedData.phone || 'não fornecido',
+      orderId: sanitizedData.orderId,
+      value: sanitizedData.value
     });
     
     // Add a unique ID to avoid duplicate requests
-    const requestId = `${formattedData.orderId}-${Date.now()}`;
-    formattedData.requestId = requestId;
+    const requestId = `${sanitizedData.orderId}-${Date.now()}`;
+    sanitizedData.requestId = requestId;
     console.log(`Request ID único gerado para evitar duplicação: ${requestId}`);
     
     // Usar o caminho correto para a função Netlify
@@ -175,8 +205,10 @@ export const generatePixPayment = async (billingData: any) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
       },
-      body: JSON.stringify(formattedData),
+      body: JSON.stringify(sanitizedData),
     });
     
     console.log('Response status:', response.status);

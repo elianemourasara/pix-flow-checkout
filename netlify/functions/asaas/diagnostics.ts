@@ -85,6 +85,28 @@ export function detectInvisibleCharacters(text: string): {
 }
 
 /**
+ * Função para sanitizar uma chave API, removendo caracteres problemáticos
+ * e normalizando o formato
+ */
+export function sanitizeApiKey(apiKey: string): string {
+  if (!apiKey) return '';
+  
+  // Remover espaços, quebras de linha e aspas
+  let sanitized = apiKey
+    .trim()
+    .replace(/[\r\n\t]/g, '')
+    .replace(/["']/g, '')
+    .replace(/\s/g, '');
+  
+  // Normalizar o formato para garantir que comece com $aact_
+  if (sanitized.includes('aact_') && !sanitized.includes('$aact_')) {
+    sanitized = sanitized.replace('aact_', '$aact_');
+  }
+  
+  return sanitized;
+}
+
+/**
  * Função para analisar profundamente caracteres especiais e formato da chave API
  */
 export function analyzeApiKey(apiKey: string): {
@@ -98,6 +120,7 @@ export function analyzeApiKey(apiKey: string): {
   containsQuotes: boolean;
   firstEight: string;
   lastFour: string;
+  recommendedAction?: string;
 } {
   const { cleanText, detectedChars } = detectInvisibleCharacters(apiKey);
   
@@ -111,6 +134,19 @@ export function analyzeApiKey(apiKey: string): {
   if (hasPrefixDollar) format = '$aact_...';
   else if (startsWithAact) format = 'aact_...';
   
+  // Determinar ação recomendada com base nos problemas detectados
+  let recommendedAction = undefined;
+  
+  if (containsInvisibleChars) {
+    recommendedAction = "Remover caracteres invisíveis da chave API usando o método sanitizeApiKey";
+  } else if (containsQuotes) {
+    recommendedAction = "Remover aspas da chave API";
+  } else if (!hasPrefixDollar && startsWithAact) {
+    recommendedAction = "Adicionar o prefixo $ à chave API (deve ser $aact_)";
+  } else if (apiKey.length < 30) {
+    recommendedAction = "A chave parece incompleta ou inválida. Gere uma nova chave no painel do Asaas";
+  }
+  
   return {
     valid: hasPrefixDollar && apiKey.length >= 30 && !containsQuotes && detectedChars.length === 0,
     format,
@@ -121,8 +157,83 @@ export function analyzeApiKey(apiKey: string): {
     invisibleChars: detectedChars,
     containsQuotes,
     firstEight: apiKey.substring(0, 8),
-    lastFour: apiKey.substring(apiKey.length - 4)
+    lastFour: apiKey.substring(apiKey.length - 4),
+    recommendedAction
   };
+}
+
+/**
+ * Função para testar uma chamada HTTP simples para a API Asaas
+ * usando a configuração mais básica possível
+ */
+export async function testMinimalHttpCall(apiKey: string, isSandbox: boolean): Promise<{
+  success: boolean;
+  status?: number;
+  response?: string;
+  error?: string;
+}> {
+  const apiBaseUrl = getAsaasApiBaseUrl(isSandbox);
+  const url = `${apiBaseUrl}/status`;
+  
+  try {
+    // Sanitizar a chave e montar o header de autorização
+    const sanitizedKey = sanitizeApiKey(apiKey);
+    const authHeader = `Bearer ${sanitizedKey}`;
+    
+    // Usar a API http/https nativa do Node para máximo controle
+    const https = await import('https');
+    
+    return new Promise((resolve) => {
+      const req = https.request(
+        url,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': authHeader,
+            'Content-Type': 'application/json'
+          },
+          timeout: 10000,
+        },
+        (res) => {
+          let data = '';
+          
+          res.on('data', (chunk) => {
+            data += chunk;
+          });
+          
+          res.on('end', () => {
+            resolve({
+              success: res.statusCode === 200,
+              status: res.statusCode,
+              response: data
+            });
+          });
+        }
+      );
+      
+      req.on('error', (error) => {
+        resolve({
+          success: false,
+          error: error.message
+        });
+      });
+      
+      req.on('timeout', () => {
+        req.destroy();
+        resolve({
+          success: false,
+          error: 'Timeout'
+        });
+      });
+      
+      req.end();
+    });
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
 }
 
 /**
@@ -147,7 +258,12 @@ export async function runApiDiagnostic(options: DiagnosticOptions): Promise<Diag
   try {
     // Analisar a chave API
     const keyAnalysis = analyzeApiKey(apiKey);
-    console.log('[ApiDiagnostic] Análise da chave API:', JSON.stringify(keyAnalysis, null, 2));
+    console.log('[ApiDiagnostic] Análise da chave API:', JSON.stringify({
+      ...keyAnalysis,
+      // Não incluir a chave completa nos logs
+      firstEight: keyAnalysis.firstEight,
+      lastFour: keyAnalysis.lastFour
+    }, null, 2));
     
     // Se a chave tiver problemas graves, retornar erro
     if (keyAnalysis.containsInvisibleChars) {
@@ -165,11 +281,7 @@ export async function runApiDiagnostic(options: DiagnosticOptions): Promise<Diag
     }
     
     // Sanitizar a chave (remover caracteres problemáticos)
-    const sanitizedKey = apiKey
-      .trim()
-      .replace(/[\r\n\t]/g, '')
-      .replace(/["']/g, '')
-      .replace(/\s/g, '');
+    const sanitizedKey = sanitizeApiKey(apiKey);
     
     // Verificar se a sanitização alterou a chave
     if (sanitizedKey !== apiKey) {
@@ -299,16 +411,25 @@ export async function runComprehensiveDiagnostics(apiKey: string, isSandbox: boo
 }> {
   const results: Record<string, DiagnosticResult> = {};
   
+  // Primeiro, vamos tentar uma chamada HTTP nativa mais simples possível
+  const minimalTest = await testMinimalHttpCall(sanitizeApiKey(apiKey), isSandbox);
+  results.minimalHttps = {
+    success: minimalTest.success,
+    statusCode: minimalTest.status,
+    response: minimalTest.response,
+    error: minimalTest.error
+  };
+  
   // Teste 1: Configuração padrão
   results.standard = await runApiDiagnostic({
-    apiKey,
+    apiKey: sanitizeApiKey(apiKey),
     isSandbox,
     endpoint: '/status'
   });
   
   // Teste 2: Com User-Agent diferente
   results.differentUserAgent = await runApiDiagnostic({
-    apiKey,
+    apiKey: sanitizeApiKey(apiKey),
     isSandbox,
     endpoint: '/status',
     extraHeaders: {
@@ -324,7 +445,7 @@ export async function runComprehensiveDiagnostics(apiKey: string, isSandbox: boo
   });
   
   results.ipv4Only = await runApiDiagnostic({
-    apiKey,
+    apiKey: sanitizeApiKey(apiKey),
     isSandbox,
     endpoint: '/status',
     agent: ipv4Agent
@@ -332,7 +453,7 @@ export async function runComprehensiveDiagnostics(apiKey: string, isSandbox: boo
   
   // Teste 4: Sem headers extras
   results.minimalHeaders = await runApiDiagnostic({
-    apiKey,
+    apiKey: sanitizeApiKey(apiKey),
     isSandbox,
     endpoint: '/status',
     extraHeaders: {
@@ -344,7 +465,7 @@ export async function runComprehensiveDiagnostics(apiKey: string, isSandbox: boo
   
   // Teste 5: Com timeout maior
   results.extendedTimeout = await runApiDiagnostic({
-    apiKey,
+    apiKey: sanitizeApiKey(apiKey),
     isSandbox,
     endpoint: '/status',
     timeout: 60000
@@ -370,6 +491,21 @@ export async function runComprehensiveDiagnostics(apiKey: string, isSandbox: boo
     if (Object.values(results).some(r => r.statusCode === 403)) {
       possibleIssues.push('O IP do servidor pode estar bloqueado pelo Asaas.');
     }
+    
+    // Verificar se algum teste retornou CloudFront nos headers
+    const hasCloudFrontIssue = Object.values(results).some(
+      r => r.headers && (r.headers['x-cache']?.includes('cloudfront') || r.headers['via']?.includes('cloudfront'))
+    );
+    
+    if (hasCloudFrontIssue) {
+      possibleIssues.push('Detectados headers CloudFront. Pode haver um problema de proxy ou CDN afetando a autenticação.');
+    }
+    
+    // Novos testes para o problema específico
+    const analyzedKey = analyzeApiKey(apiKey);
+    if (!analyzedKey.valid && analyzedKey.recommendedAction) {
+      possibleIssues.push(`Problema na formatação da chave API: ${analyzedKey.recommendedAction}`);
+    }
   } else if (results.differentUserAgent.success && !results.standard.success) {
     possibleIssues.push('O User-Agent padrão pode estar sendo bloqueado. Considere usar um User-Agent diferente.');
   } else if (results.ipv4Only.success && !results.standard.success) {
@@ -382,6 +518,14 @@ export async function runComprehensiveDiagnostics(apiKey: string, isSandbox: boo
   if (anySuccess) {
     const successTest = Object.entries(results).find(([_, r]) => r.success);
     recommendedAction = `Usar a configuração do teste "${successTest?.[0]}" que foi bem-sucedido.`;
+  } else {
+    if (possibleIssues.some(issue => issue.includes('CloudFront'))) {
+      recommendedAction = 'Verificar se há alguma configuração de proxy ou CDN na sua função Netlify que possa estar afetando os headers de autorização.';
+    }
+    
+    if (possibleIssues.some(issue => issue.includes('formatação da chave'))) {
+      recommendedAction = 'Corrija a formatação da chave API conforme a análise sugere e regenere a chave no painel do Asaas se necessário.';
+    }
   }
   
   return {
@@ -404,6 +548,7 @@ export async function diagnoseDependencyIssues(): Promise<{
   agentWorks: boolean;
   corsHeadersWork: boolean;
   environmentVariables: Record<string, string | undefined>;
+  netlifyInfo?: Record<string, string | undefined>;
 }> {
   const result = {
     fetchAvailable: false,
@@ -416,6 +561,13 @@ export async function diagnoseDependencyIssues(): Promise<{
       NETLIFY: process.env.NETLIFY,
       CONTEXT: process.env.CONTEXT,
       USE_ASAAS_PRODUCTION: process.env.USE_ASAAS_PRODUCTION
+    },
+    netlifyInfo: {
+      NETLIFY_DEV: process.env.NETLIFY_DEV,
+      NETLIFY_FUNCTIONS_URL: process.env.NETLIFY_FUNCTIONS_URL,
+      DEPLOY_URL: process.env.DEPLOY_URL,
+      DEPLOY_PRIME_URL: process.env.DEPLOY_PRIME_URL,
+      URL: process.env.URL
     }
   };
   
