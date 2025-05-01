@@ -1,4 +1,3 @@
-
 // /netlify/functions/create-asaas-customer.ts (com validação aprimorada)
 
 import { Handler, HandlerEvent } from '@netlify/functions';
@@ -159,7 +158,7 @@ const handler: Handler = async (event: HandlerEvent) => {
     // MODIFICAÇÃO: Realizar teste com node-fetch nativo e https.Agent específico
     console.log('[create-asaas-customer] Testando conexão direta com node-fetch e https.Agent personalizado...');
     const https = await import('https');
-    const fetch = (await import('node-fetch')).default;
+    const fetch = require('node-fetch');
     
     const agent = new https.Agent({
       rejectUnauthorized: true,

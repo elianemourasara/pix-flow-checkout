@@ -22,6 +22,9 @@ async function validateApiKey(apiKey: string, apiUrl: string): Promise<boolean> 
       timeout: 30000
     });
     
+    // Importar node-fetch para garantir compatibilidade
+    const fetch = require('node-fetch');
+    
     // Teste em endpoint menos restrito (/status em vez de /customers)
     const testUrl = `${apiUrl}/status`;
     console.log(`[validateApiKey] Testando conexão em: ${testUrl}`);
@@ -35,7 +38,6 @@ async function validateApiKey(apiKey: string, apiUrl: string): Promise<boolean> 
         'Accept': '*/*',
         'Cache-Control': 'no-cache'
       },
-      // @ts-ignore - Tipagem incompatível entre node-fetch e fetch nativo
       agent,
       timeout: 30000
     });

@@ -6,6 +6,9 @@ import {
   AsaasApiError
 } from './types';
 
+// Add import for node-fetch at the top (will be added by our system)
+const fetch = require('node-fetch');
+
 /**
  * Sanitiza a chave API para garantir que não contenha caracteres problemáticos
  * @param apiKey Chave API a ser sanitizada
