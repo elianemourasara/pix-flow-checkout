@@ -41,6 +41,9 @@ const handler: Handler = async (event: HandlerEvent) => {
   }
 
   try {
+    // Importar as funções de diagnóstico apenas quando necessário
+    const { analyzeApiKey } = await import('./asaas/diagnostics');
+    
     const requestData: AsaasCustomerRequest = JSON.parse(event.body || '{}');
     console.log('[create-asaas-customer] Dados recebidos (parcial):', {
       name: requestData.name,
@@ -85,8 +88,49 @@ const handler: Handler = async (event: HandlerEvent) => {
       };
     }
 
+    // NOVA ANÁLISE: Análise detalhada da chave API
+    const keyAnalysis = analyzeApiKey(apiKey);
+    console.log('[create-asaas-customer] Análise da chave API:', JSON.stringify({
+      ...keyAnalysis,
+      // Não incluir a chave completa nos logs
+      firstEight: keyAnalysis.firstEight,
+      lastFour: keyAnalysis.lastFour
+    }, null, 2));
+    
+    if (!keyAnalysis.valid) {
+      console.error('[create-asaas-customer] ERRO CRÍTICO: A chave API tem problemas de formato!');
+      
+      if (keyAnalysis.containsInvisibleChars) {
+        console.error('[create-asaas-customer] ERRO: A chave contém caracteres invisíveis que causam falhas de autenticação!');
+        console.error('[create-asaas-customer] Caracteres invisíveis detectados:', keyAnalysis.invisibleChars);
+      }
+      
+      if (keyAnalysis.containsQuotes) {
+        console.error('[create-asaas-customer] ERRO: A chave contém aspas que devem ser removidas!');
+      }
+      
+      if (!keyAnalysis.hasPrefixDollar) {
+        console.error('[create-asaas-customer] ERRO: A chave não tem o formato esperado ($aact_)');
+      }
+      
+      return {
+        statusCode: 500,
+        headers: corsHeaders,
+        body: JSON.stringify({ 
+          error: 'Invalid API key format',
+          details: {
+            containsInvisibleChars: keyAnalysis.containsInvisibleChars,
+            containsQuotes: keyAnalysis.containsQuotes,
+            hasPrefixDollar: keyAnalysis.hasPrefixDollar,
+            format: keyAnalysis.format,
+            length: keyAnalysis.length
+          }
+        }),
+      };
+    }
+
     // Validar a chave API antes de prosseguir
-    console.log(`[create-asaas-customer] Chave API obtida: ${apiKey.substring(0, 8)}...${apiKey.substring(apiKey.length - 4)}`);
+    console.log(`[create-asaas-customer] Chave API analisada: ${apiKey.substring(0, 8)}...${apiKey.substring(apiKey.length - 4)}`);
     console.log(`[create-asaas-customer] Comprimento da chave: ${apiKey.length} caracteres`);
     
     // Verificação preliminar do formato da chave
@@ -110,6 +154,63 @@ const handler: Handler = async (event: HandlerEvent) => {
         console.log(`[create-asaas-customer] Caracteres especiais encontrados: ${JSON.stringify(matches)}`);
         console.log(`[create-asaas-customer] Posições dos caracteres especiais: ${matches.map(char => apiKey.indexOf(char)).join(', ')}`);
       }
+    }
+    
+    // MODIFICAÇÃO: Realizar teste com node-fetch nativo e https.Agent específico
+    console.log('[create-asaas-customer] Testando conexão direta com node-fetch e https.Agent personalizado...');
+    const https = await import('https');
+    const fetch = (await import('node-fetch')).default;
+    
+    const agent = new https.Agent({
+      rejectUnauthorized: true,
+      keepAlive: true,
+      timeout: 30000
+    });
+    
+    try {
+      const testResponse = await fetch(`${apiBaseUrl}/status`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+          'User-Agent': 'Mozilla/5.0 (compatible; AsaasNetlifyTest/1.0)',
+          'Accept': '*/*'
+        },
+        // @ts-ignore - Tipagem incompatível entre node-fetch e fetch nativo
+        agent
+      });
+      
+      console.log(`[create-asaas-customer] Teste de conexão: Status ${testResponse.status}`);
+      console.log(`[create-asaas-customer] Headers da resposta:`, 
+        JSON.stringify(Object.fromEntries([...testResponse.headers]), null, 2));
+      
+      const responseText = await testResponse.text();
+      console.log(`[create-asaas-customer] Resposta: ${responseText.substring(0, 200)}`);
+      
+      if (!testResponse.ok) {
+        console.error(`[create-asaas-customer] ERRO: Teste manual falhou com status ${testResponse.status}`);
+        
+        return {
+          statusCode: 500,
+          headers: corsHeaders,
+          body: JSON.stringify({ 
+            error: 'API test failed',
+            status: testResponse.status,
+            response: responseText
+          }),
+        };
+      }
+    } catch (testError) {
+      console.error('[create-asaas-customer] Erro no teste manual:', testError);
+      
+      return {
+        statusCode: 500,
+        headers: corsHeaders,
+        body: JSON.stringify({ 
+          error: 'API connection test failed',
+          message: testError.message
+        }),
+      };
     }
     
     // Teste cURL simulado para diagnóstico mais preciso
