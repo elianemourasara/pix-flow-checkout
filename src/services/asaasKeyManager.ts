@@ -1,5 +1,5 @@
 
-// Re-export service functionality
+// Re-export service functionality from new location
 export * from './asaas/types';
 export { 
   getActiveApiKey,
@@ -9,4 +9,6 @@ export {
   addApiKey,
   testApiKey
 } from './asaas/keyService';
+
+// Re-export for backward compatibility
 export * from './asaas/keyStatisticsService';

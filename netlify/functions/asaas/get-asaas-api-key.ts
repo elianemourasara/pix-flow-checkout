@@ -1,3 +1,4 @@
+
 import { supabase } from './supabase-client';
 import { AsaasApiKey, AsaasEnvironment, ApiTestResult } from './types';
 
@@ -49,6 +50,9 @@ export async function testApiKey(apiKey: string, isSandbox: boolean): Promise<bo
       : 'https://api.asaas.com/api/v3';
       
     const url = `${baseUrl}/status`;
+    
+    // Use require for node-fetch to ensure compatibility
+    const fetch = require('node-fetch');
     
     const response = await fetch(url, {
       method: 'GET',
