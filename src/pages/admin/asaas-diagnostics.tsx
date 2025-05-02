@@ -1,6 +1,6 @@
 
 import React from 'react';
-import AdminLayout from '@/components/admin/AdminLayout';
+import AdminLayout from '@/layouts/AdminLayout';
 import ApiKeyDiagnostic from './components/ApiKeyDiagnostic';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
