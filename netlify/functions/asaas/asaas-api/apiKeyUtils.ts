@@ -7,22 +7,9 @@ export function sanitizeApiKey(apiKey: string): string {
   if (!apiKey) return '';
   
   console.log(`[sanitizeApiKey] Sanitizando chave API (tamanho original: ${apiKey.length})`);
-  console.log(`[sanitizeApiKey] Primeiros 8 caracteres: ${apiKey.substring(0, 8)}...`);
-  console.log(`[sanitizeApiKey] Últimos 4 caracteres: ...${apiKey.substring(apiKey.length - 4)}`);
   
   // Converter para string caso não seja
   let sanitized = String(apiKey);
-  
-  // Verificar se há caracteres de controle antes da sanitização
-  const controlCharsRegex = /[\x00-\x1F\x7F-\x9F]/g;
-  if (controlCharsRegex.test(sanitized)) {
-    console.warn('[sanitizeApiKey] ALERTA: Caracteres de controle detectados na chave API');
-    // Logar quais caracteres foram encontrados (como códigos Unicode)
-    const matches = sanitized.match(controlCharsRegex);
-    if (matches) {
-      console.warn(`[sanitizeApiKey] Caracteres encontrados: ${matches.map(c => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`).join(', ')}`);
-    }
-  }
   
   // Remove espaços no início e fim
   let previousLength = sanitized.length;
@@ -45,11 +32,6 @@ export function sanitizeApiKey(apiKey: string): string {
     console.warn('[sanitizeApiKey] ALERTA: Caracteres unicode invisíveis detectados e removidos');
     sanitized = sanitized.replace(invisibleChars, '');
     console.warn(`[sanitizeApiKey] Após remoção de caracteres invisíveis: Antes: ${previousLength}, Depois: ${sanitized.length}`);
-  }
-  
-  // Verifica se a chave contém aspas ou outros caracteres que possam afetar o header
-  if (sanitized.includes('"') || sanitized.includes("'") || sanitized.includes('\\')) {
-    console.warn('[sanitizeApiKey] ALERTA: A chave API contém caracteres que podem causar problemas');
   }
   
   // Verificar formato básico da chave Asaas (começa com $aact_)
@@ -108,17 +90,22 @@ export async function testApiKeyEndpoint(apiKey: string, apiUrl: string): Promis
   const testEndpoint = `${apiUrl}/status`;
   console.log(`[testApiKeyEndpoint] Testando chave API no endpoint: ${testEndpoint}`);
   console.log(`[testApiKeyEndpoint] Primeiros 8 caracteres da chave: ${apiKey.substring(0, 8)}...`);
+  console.log(`[testApiKeyEndpoint] Ambiente: ${apiUrl.includes('sandbox') ? 'SANDBOX' : 'PRODUÇÃO'}`);
   
   try {
     const authHeader = validateAuthHeader(apiKey);
-    // Use require for node-fetch to ensure compatibility
+    
+    // Use require for node-fetch to ensure compatibility with Netlify Functions
     const fetch = require('node-fetch');
     
     const response = await fetch(testEndpoint, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': authHeader
+        'Authorization': authHeader,
+        'User-Agent': 'Mozilla/5.0 Lovable/Netlify',
+        'Accept': '*/*',
+        'Cache-Control': 'no-cache'
       }
     });
     
@@ -131,7 +118,17 @@ export async function testApiKeyEndpoint(apiKey: string, apiUrl: string): Promis
       const errorText = await response.text();
       console.error('[testApiKeyEndpoint] Erro no teste da chave API:', errorText);
       console.error('[testApiKeyEndpoint] Status HTTP:', response.status);
-      console.error('[testApiKeyEndpoint] Headers da resposta:', JSON.stringify(Object.fromEntries([...response.headers])));
+      
+      // Diagnóstico específico para erro 401
+      if (response.status === 401) {
+        console.error('[testApiKeyEndpoint] ERRO DE AUTENTICAÇÃO (401)');
+        console.error('[testApiKeyEndpoint] Verifique:');
+        console.error('  1. Se a chave está correta e sem caracteres extras');
+        console.error(`  2. Se o ambiente está correto (usando ${apiUrl.includes('sandbox') ? 'sandbox' : 'produção'})`);
+        console.error('  3. Se a variável de ambiente USE_ASAAS_PRODUCTION está configurada corretamente');
+        console.error('  4. Valor da variável USE_ASAAS_PRODUCTION:', process.env.USE_ASAAS_PRODUCTION);
+      }
+      
       return false;
     }
   } catch (error) {

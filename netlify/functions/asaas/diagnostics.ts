@@ -1,231 +1,150 @@
 
-/**
- * Funções para diagnóstico e sanitização da integração com o Asaas
- */
 import * as https from 'https';
 
-/**
- * Sanitiza uma chave API, removendo caracteres invisíveis, aspas e espaços
- * @param apiKey Chave API a ser sanitizada
- * @returns Chave sanitizada
- */
-export function sanitizeApiKey(apiKey: string): string {
-  if (!apiKey) return '';
-  
-  // 1. Remover aspas (simples e duplas) que podem ter sido incluídas acidentalmente
-  let sanitized = apiKey.replace(/['"]/g, '');
-  
-  // 2. Remover caracteres invisíveis e espaços
-  sanitized = sanitized.replace(/\s+/g, '');
-  
-  // 3. Remover outros caracteres invisíveis específicos (BOM, quebras de linha, etc.)
-  sanitized = sanitized.replace(/[\u200B-\u200D\uFEFF\u00A0\u1680\u180E\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]/g, '');
-  
-  return sanitized;
-}
-
-/**
- * Analisa uma chave API do Asaas, verificando seu formato e possíveis problemas
- * @param apiKey Chave API para análise
- * @returns Objeto com informações detalhadas da análise
- */
-export function analyzeApiKey(apiKey: string): {
+interface ApiKeyAnalysis {
   valid: boolean;
   format: string;
   length: number;
+  hasPrefixDollar: boolean;
   firstEight: string;
   lastFour: string;
-  startsWithAact: boolean;
-  hasPrefixDollar: boolean;
+  fullKey?: string;
   containsInvisibleChars: boolean;
-  invisibleChars?: string[];
   containsQuotes: boolean;
   recommendedAction?: string;
-} {
+}
+
+interface DiagnosticResult {
+  success: boolean;
+  statusCode?: number;
+  headers?: Record<string, string>;
+  response?: string;
+  error?: string;
+}
+
+interface DiagnosticReport {
+  summary: {
+    success: boolean;
+    message: string;
+    environment: string;
+    keyFormat: boolean;
+    connectivity: boolean;
+    authentication: boolean;
+  };
+  results: Record<string, DiagnosticResult>;
+}
+
+/**
+ * Analisa uma chave API para identificar problemas
+ * @param apiKey Chave API a ser analisada
+ * @returns Análise da chave
+ */
+export function analyzeApiKey(apiKey: string): ApiKeyAnalysis {
   if (!apiKey) {
     return {
       valid: false,
-      format: 'empty',
+      format: 'vazia',
       length: 0,
+      hasPrefixDollar: false,
       firstEight: '',
       lastFour: '',
-      startsWithAact: false,
-      hasPrefixDollar: false,
       containsInvisibleChars: false,
       containsQuotes: false,
-      recommendedAction: 'Forneça uma chave API válida'
+      recommendedAction: 'Forneça uma chave API válida no formato $aact_*'
     };
   }
   
-  // Verificar formato básico da chave
-  const hasPrefixDollar = apiKey.startsWith('$');
-  const startsWithAact = apiKey.includes('aact_');
-  const correctStart = apiKey.startsWith('$aact_');
-  
-  // Verificar caracteres problemáticos
-  const containsQuotes = apiKey.includes('"') || apiKey.includes("'");
-  
-  // Detecção de caracteres invisíveis
-  const originalLength = apiKey.length;
-  const sanitized = sanitizeApiKey(apiKey);
-  const sanitizedLength = sanitized.length;
-  const containsInvisibleChars = originalLength !== sanitizedLength;
-  
-  // Detectar quais caracteres invisíveis existem
-  const invisibleChars: string[] = [];
-  if (containsInvisibleChars) {
-    // Iterar pelos caracteres para identificar invisíveis por posição
-    for (let i = 0; i < apiKey.length; i++) {
-      const char = apiKey[i];
-      const code = char.charCodeAt(0);
-      // Verificar se é um caractere de controle ou espaço invisível
-      if (
-        (code < 32 && code !== 9 && code !== 10 && code !== 13) || // Controle (exceto tab, LF, CR)
-        (code >= 0x200B && code <= 0x200D) || // Zero-width spaces
-        code === 0xFEFF || // BOM
-        code === 0x00A0 || // Non-breaking space
-        code === 0x1680 || // Ogham space mark
-        code === 0x180E || // Mongolian vowel separator
-        (code >= 0x2000 && code <= 0x200A) || // Em/En spaces
-        code === 0x2028 || // Line separator
-        code === 0x2029 || // Paragraph separator
-        code === 0x202F || // Narrow no-break space
-        code === 0x205F || // Medium mathematical space
-        code === 0x3000    // Ideographic space
-      ) {
-        invisibleChars.push(`pos ${i}: U+${code.toString(16).toUpperCase().padStart(4, '0')}`);
-      }
-    }
-  }
-  
-  // Determinar formato da chave
-  let format = 'unknown';
-  if (correctStart) {
-    format = 'correct';
-  } else if (hasPrefixDollar && !startsWithAact) {
-    format = 'starts-with-$-only';
-  } else if (!hasPrefixDollar && startsWithAact) {
-    format = 'starts-with-aact-only';
-  } else if (!hasPrefixDollar && !startsWithAact) {
-    format = 'no-prefix';
-  }
-
-  // Extrair pedaços da chave para identificação segura
-  const firstEight = apiKey.substring(0, Math.min(8, apiKey.length));
+  const firstEight = apiKey.length >= 8 ? apiKey.substring(0, 8) : apiKey;
   const lastFour = apiKey.length >= 4 ? apiKey.substring(apiKey.length - 4) : apiKey;
   
-  // Gerar ação recomendada
-  let recommendedAction: string | undefined;
-  if (containsInvisibleChars) {
-    recommendedAction = 'A chave contém caracteres invisíveis que precisam ser removidos. Copie a chave diretamente do painel do Asaas novamente.';
+  const hasPrefixDollar = apiKey.startsWith('$');
+  const hasPrefixAact = apiKey.startsWith('$aact_');
+  const containsInvisibleChars = /[\u200B-\u200D\uFEFF\s]/.test(apiKey);
+  const containsQuotes = apiKey.includes('"') || apiKey.includes("'");
+  
+  let format = 'desconhecido';
+  let recommendedAction = undefined;
+  
+  if (!hasPrefixDollar) {
+    format = 'sem $ inicial';
+    recommendedAction = 'A chave deve começar com $aact_';
+  } else if (!hasPrefixAact) {
+    format = 'sem prefixo $aact_';
+    recommendedAction = 'Verifique se a chave está no formato $aact_*';
+  } else if (apiKey.length < 30) {
+    format = 'muito curta';
+    recommendedAction = 'A chave parece estar incompleta';
+  } else if (containsInvisibleChars) {
+    format = 'contém caracteres invisíveis';
+    recommendedAction = 'Remova espaços e caracteres invisíveis da chave';
   } else if (containsQuotes) {
-    recommendedAction = 'A chave contém aspas que precisam ser removidas.';
-  } else if (!correctStart) {
-    recommendedAction = 'A chave não segue o formato padrão ($aact_...). Verifique se está usando uma chave API válida do Asaas.';
-  } else if (sanitizedLength < 50) {
-    recommendedAction = 'A chave parece estar incompleta. Verifique se ela foi copiada integralmente do painel do Asaas.';
+    format = 'contém aspas';
+    recommendedAction = 'Remova as aspas da chave';
+  } else {
+    format = 'aparentemente válida';
   }
   
-  // Verificar se a chave parece válida
-  const valid = correctStart && !containsInvisibleChars && !containsQuotes && sanitizedLength > 50;
-  
   return {
-    valid,
+    valid: hasPrefixAact && !containsInvisibleChars && !containsQuotes && apiKey.length > 30,
     format,
-    length: sanitizedLength,
+    length: apiKey.length,
+    hasPrefixDollar,
     firstEight,
     lastFour,
-    startsWithAact,
-    hasPrefixDollar,
+    fullKey: apiKey, // Apenas para diagnóstico, remova em produção
     containsInvisibleChars,
-    invisibleChars: invisibleChars.length > 0 ? invisibleChars : undefined,
     containsQuotes,
     recommendedAction
   };
 }
 
 /**
- * Verifica se há problemas de dependências ou ambiente que possam afetar a integração
+ * Limpa a chave API removendo caracteres problemáticos
+ * @param apiKey Chave API a ser sanitizada
+ * @returns Chave API limpa
  */
-export async function diagnoseDependencyIssues() {
-  const issues = {
-    fetchAvailable: typeof fetch === 'function',
-    httpsAvailable: typeof https !== 'undefined',
-    agentWorks: false,
-    corsHeadersWork: false,
-    environmentVariables: {
-      USE_ASAAS_PRODUCTION: process.env.USE_ASAAS_PRODUCTION,
-      NODE_ENV: process.env.NODE_ENV,
-      AWS_LAMBDA_FUNCTION_NAME: process.env.AWS_LAMBDA_FUNCTION_NAME,
-      NETLIFY: process.env.NETLIFY
-    },
-    netlifyInfo: {
-      SITE_ID: process.env.SITE_ID,
-      NETLIFY_LOCAL: process.env.NETLIFY_LOCAL,
-      NETLIFY_DEV: process.env.NETLIFY_DEV,
-      DEPLOY_ID: process.env.DEPLOY_ID
-    }
-  };
+export function sanitizeApiKey(apiKey: string): string {
+  if (!apiKey) return '';
   
-  try {
-    // Testar se Agent funciona
-    const agent = new https.Agent({
-      rejectUnauthorized: true,
-      keepAlive: true
-    });
-    issues.agentWorks = true;
-    
-    // Testar CORS headers
-    const corsHeaders = {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
-    };
-    if (Object.keys(corsHeaders).length > 0) {
-      issues.corsHeadersWork = true;
-    }
-  } catch (error) {
-    console.error('[diagnoseDependencies] Erro ao verificar dependências:', error);
-  }
-  
-  return issues;
+  // Remover espaços, quebras de linha e caracteres invisíveis
+  return apiKey
+    .trim()
+    .replace(/[\n\r\t\s]/g, '')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '');
 }
 
 /**
- * Executa testes simples de conexão HTTP usando fetch nativo
- * @param apiKey Chave API para testar
- * @param isSandbox Indicador se deve usar ambiente sandbox
+ * Teste HTTP simples para diagnóstico básico
+ * @param apiKey Chave API sanitizada
+ * @param isSandbox Se deve usar ambiente sandbox
+ * @returns Resultado do teste
  */
-export async function testMinimalHttpCall(apiKey: string, isSandbox: boolean) {
+export async function testMinimalHttpCall(apiKey: string, isSandbox: boolean): Promise<DiagnosticResult> {
   try {
     const baseUrl = isSandbox 
       ? 'https://sandbox.asaas.com/api/v3'
       : 'https://api.asaas.com/api/v3';
       
-    const url = `${baseUrl}/status`;
-    console.log(`[testMinimalHttpCall] Testando conexão básica em ${url}`);
+    // Use require for node-fetch to ensure compatibility
+    const fetch = require('node-fetch');
     
-    const response = await fetch(url, {
+    const response = await fetch(`${baseUrl}/status`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`,
-        'User-Agent': 'Mozilla/5.0 (compatible; AsaasTest/1.0)'
+        'User-Agent': 'Mozilla/5.0 Lovable/Diagnostics'
       }
     });
     
-    const success = response.ok;
-    const status = response.status;
-    
-    console.log(`[testMinimalHttpCall] Resultado: ${success ? 'Sucesso' : 'Falha'}, status: ${status}`);
-    
     const responseText = await response.text();
+    
     return {
-      success,
-      status,
+      success: response.ok,
+      statusCode: response.status,
       response: responseText
     };
-  } catch (error: any) {
-    console.error('[testMinimalHttpCall] Erro:', error);
+  } catch (error) {
     return {
       success: false,
       error: error.message
@@ -234,156 +153,200 @@ export async function testMinimalHttpCall(apiKey: string, isSandbox: boolean) {
 }
 
 /**
- * Executa um diagnóstico completo da integração com o Asaas
- * @param apiKey Chave API para diagnosticar
- * @param isSandbox Indicador se deve usar ambiente sandbox
+ * Verifica problemas com dependências
+ * @returns Resultados do diagnóstico
  */
-export async function runComprehensiveDiagnostics(apiKey: string, isSandbox: boolean) {
+export async function diagnoseDependencyIssues(): Promise<Record<string, any>> {
+  const results = {
+    nodeFetch: {
+      available: false,
+      version: null,
+      error: null
+    },
+    nativeFetch: {
+      available: false,
+      error: null
+    },
+    https: {
+      available: !!https,
+      agent: false,
+      error: null
+    }
+  };
+  
+  // Verificar node-fetch
+  try {
+    const nodeFetch = require('node-fetch');
+    results.nodeFetch.available = true;
+    results.nodeFetch.version = nodeFetch?.default?.version || 'desconhecida';
+  } catch (error) {
+    results.nodeFetch.error = error.message;
+  }
+  
+  // Verificar fetch nativo
+  try {
+    results.nativeFetch.available = typeof fetch !== 'undefined';
+  } catch (error) {
+    results.nativeFetch.error = error.message;
+  }
+  
+  // Verificar agent HTTPS
+  try {
+    new https.Agent({});
+    results.https.agent = true;
+  } catch (error) {
+    results.https.error = error.message;
+  }
+  
+  return results;
+}
+
+/**
+ * Executa diagnóstico completo da integração com Asaas
+ * @param apiKey Chave API a ser testada
+ * @param isSandbox Se deve usar ambiente sandbox
+ * @returns Relatório de diagnóstico
+ */
+export async function runComprehensiveDiagnostics(apiKey: string, isSandbox: boolean): Promise<DiagnosticReport> {
   const baseUrl = isSandbox 
     ? 'https://sandbox.asaas.com/api/v3'
     : 'https://api.asaas.com/api/v3';
-  
-  console.log(`[runComprehensiveDiagnostics] Iniciando diagnóstico com ${isSandbox ? 'SANDBOX' : 'PRODUÇÃO'}`);
-  console.log(`[runComprehensiveDiagnostics] URL base: ${baseUrl}`);
-  
-  // Sanitizar a chave para o teste
+    
   const sanitizedKey = sanitizeApiKey(apiKey);
+  const keyAnalysis = analyzeApiKey(sanitizedKey);
   
-  // Resultados de testes
-  const results: Record<string, {
-    success: boolean;
-    statusCode?: number;
-    headers?: Record<string, string>;
-    response?: string;
-    error?: string;
-  }> = {};
+  const results: Record<string, DiagnosticResult> = {};
   
-  // Testes a executar
-  const tests = [
-    {
-      name: 'status',
-      endpoint: '/status',
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${sanitizedKey}`,
-        'Content-Type': 'application/json'
-      }
-    },
-    {
-      name: 'customers_basic',
-      endpoint: '/customers?limit=1',
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${sanitizedKey}`,
-        'Content-Type': 'application/json'
-      }
-    },
-    {
-      name: 'customers_custom_ua',
-      endpoint: '/customers?limit=1',
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${sanitizedKey}`,
-        'Content-Type': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
-    },
-    {
-      name: 'customers_postman',
-      endpoint: '/customers?limit=1',
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${sanitizedKey}`,
-        'Content-Type': 'application/json',
-        'User-Agent': 'PostmanRuntime/7.29.0'
-      }
-    },
-    {
-      name: 'customers_curl',
-      endpoint: '/customers?limit=1',
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${sanitizedKey}`,
-        'Content-Type': 'application/json',
-        'User-Agent': 'curl/7.64.1'
-      }
-    }
-  ];
-  
-  // Executar os testes
-  for (const test of tests) {
+  // Teste básico de conectividade
+  try {
+    // Use require for node-fetch to ensure compatibility
+    const fetch = require('node-fetch');
+    
+    // Configurar agent HTTPS para diagnosticos avançados
+    const agent = new https.Agent({
+      rejectUnauthorized: true,
+      keepAlive: true,
+      timeout: 30000
+    });
+    
+    // Teste 1: Status endpoint sem autenticação
     try {
-      console.log(`[runComprehensiveDiagnostics] Executando teste: ${test.name}`);
-      
-      const url = `${baseUrl}${test.endpoint}`;
-      const response = await fetch(url, {
-        method: test.method,
-        headers: test.headers
+      const statusResponse = await fetch(`${baseUrl}/status`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        agent
       });
       
-      const responseText = await response.text();
-      const responseHeaders = Object.fromEntries([...response.headers]);
+      const statusText = await statusResponse.text();
       
-      results[test.name] = {
-        success: response.ok,
-        statusCode: response.status,
-        headers: responseHeaders,
-        response: responseText
+      results.connectivityTest = {
+        success: statusResponse.status < 500, // Mesmo com 401, a conectividade funciona
+        statusCode: statusResponse.status,
+        headers: Object.fromEntries([...statusResponse.headers]),
+        response: statusText
       };
-      
-      console.log(`[runComprehensiveDiagnostics] ${test.name}: ${response.status} ${response.ok ? 'OK' : 'ERRO'}`);
-      
-    } catch (error: any) {
-      console.error(`[runComprehensiveDiagnostics] Erro no teste ${test.name}:`, error);
-      results[test.name] = {
+    } catch (error) {
+      results.connectivityTest = {
         success: false,
         error: error.message
       };
     }
-  }
-  
-  // Analisar os resultados para fornecer um diagnóstico
-  const anySuccess = Object.values(results).some(r => r.success);
-  const allFailed = Object.values(results).every(r => !r.success);
-  
-  // Possíveis problemas e soluções
-  const possibleIssues: string[] = [];
-  
-  if (allFailed) {
-    possibleIssues.push('A chave API pode estar inválida ou ter expirado.');
-    possibleIssues.push('O ambiente de produção pode estar incorretamente configurado como sandbox.');
-    possibleIssues.push('A API do Asaas pode estar bloqueando requisições do seu IP ou servidor.');
-  }
-  
-  // Se alguns testes passaram e outros falharam, analisar os padrões
-  if (anySuccess && !allFailed) {
-    const userAgentPattern = results.customers_custom_ua?.success || 
-                            results.customers_postman?.success || 
-                            results.customers_curl?.success;
     
-    if (userAgentPattern && !results.customers_basic?.success) {
-      possibleIssues.push('A API do Asaas parece estar filtrando por User-Agent. Tente usar um User-Agent diferente.');
+    // Teste 2: Status com autenticação
+    try {
+      const authResponse = await fetch(`${baseUrl}/status`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sanitizedKey}`,
+          'User-Agent': 'Mozilla/5.0 Lovable/Diagnostics'
+        },
+        agent
+      });
+      
+      const authText = await authResponse.text();
+      
+      results.authenticationTest = {
+        success: authResponse.ok,
+        statusCode: authResponse.status,
+        headers: Object.fromEntries([...authResponse.headers]),
+        response: authText
+      };
+    } catch (error) {
+      results.authenticationTest = {
+        success: false,
+        error: error.message
+      };
     }
+    
+    // Teste 3: Criação de cliente (teste de permissões)
+    if (keyAnalysis.valid) {
+      try {
+        const customerResponse = await fetch(`${baseUrl}/customers`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${sanitizedKey}`,
+            'User-Agent': 'Mozilla/5.0 Lovable/Diagnostics'
+          },
+          body: JSON.stringify({
+            name: `Diagnóstico ${new Date().toISOString()}`,
+            cpfCnpj: '12345678909', // CPF fictício para teste
+            email: 'diagnostico@teste.com'
+          }),
+          agent
+        });
+        
+        const customerText = await customerResponse.text();
+        
+        results.customerTest = {
+          success: customerResponse.ok,
+          statusCode: customerResponse.status,
+          headers: Object.fromEntries([...customerResponse.headers]),
+          response: customerText
+        };
+      } catch (error) {
+        results.customerTest = {
+          success: false,
+          error: error.message
+        };
+      }
+    }
+    
+    // Verificar variáveis de ambiente
+    const envSummary = {
+      USE_ASAAS_PRODUCTION: process.env.USE_ASAAS_PRODUCTION,
+      isSandbox,
+      isMismatch: (process.env.USE_ASAAS_PRODUCTION === 'true') !== !isSandbox
+    };
+    
+    results.environmentCheck = {
+      success: !envSummary.isMismatch,
+      response: JSON.stringify(envSummary)
+    };
+    
+  } catch (error) {
+    results.generalError = {
+      success: false,
+      error: error.message
+    };
   }
   
-  let recommendedAction = 'Nenhuma ação necessária, testes bem-sucedidos.';
-  
-  if (allFailed) {
-    recommendedAction = 'Gere uma nova chave API no painel do Asaas e atualize no Supabase. Verifique se o ambiente de execução está configurado corretamente.';
-  } else if (!results.customers_basic?.success) {
-    recommendedAction = 'Tente modificar os headers da requisição, especialmente o User-Agent.';
-  }
-  
-  // Resumo do diagnóstico
+  // Calcular resumo do diagnóstico
   const summary = {
-    allFailed,
-    anySuccess,
-    recommendedAction,
-    possibleIssues
+    success: results.authenticationTest?.success || false,
+    message: results.authenticationTest?.success 
+      ? 'API Asaas funcionando corretamente' 
+      : results.authenticationTest?.statusCode === 401 
+        ? 'Erro de autenticação (401) - Chave API inválida ou sem permissões'
+        : 'Falha na conexão com API do Asaas',
+    environment: isSandbox ? 'SANDBOX' : 'PRODUÇÃO',
+    keyFormat: keyAnalysis.valid,
+    connectivity: results.connectivityTest?.success || false,
+    authentication: results.authenticationTest?.success || false
   };
   
-  return {
-    summary,
-    results
-  };
+  return { summary, results };
 }

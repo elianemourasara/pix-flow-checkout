@@ -1,41 +1,47 @@
 
 import { HandlerEvent } from '@netlify/functions';
 
+interface RequestAnalysis {
+  httpMethod: string;
+  hasBody: boolean;
+  bodySize: number | null;
+  hasCorsHeaders: boolean;
+  hasJsonContentType: boolean;
+  hasAuthHeaders: boolean;
+  referrer: string | null;
+  userAgent: string | null;
+  clientIp: string | null;
+}
+
 /**
- * Analisa detalhadamente uma requisição HTTP para diagnóstico
- * @param event Evento da função serverless
- * @returns Objeto com informações de diagnóstico
+ * Analisa detalhes da requisição HTTP para diagnóstico
+ * @param event Evento do Netlify Function
+ * @returns Análise da requisição
  */
-export function analyzeApiRequest(event: HandlerEvent) {
-  const { httpMethod, headers, body, path } = event;
-  
-  // Analisar headers importantes
-  const contentType = headers['content-type'] || headers['Content-Type'] || 'não especificado';
-  const userAgent = headers['user-agent'] || headers['User-Agent'] || 'não especificado';
-  const origin = headers['origin'] || headers['Origin'] || 'não especificado';
-  const referer = headers['referer'] || headers['Referer'] || 'não especificado';
-  
-  // Verificar tamanho do corpo da requisição
-  const bodySize = body ? body.length : 0;
-  
-  // Determinar se é uma requisição CORS
-  const isCorsRequest = !!headers['origin'] || !!headers['Origin'];
-  const isPreflight = httpMethod === 'OPTIONS' && isCorsRequest;
-  
-  // Verificar se há query params
-  const hasQueryParams = event.queryStringParameters && Object.keys(event.queryStringParameters).length > 0;
-  
-  return {
-    method: httpMethod,
-    path,
-    contentType,
-    userAgent,
-    origin,
-    referer,
-    bodySize,
-    isCorsRequest,
-    isPreflight,
-    hasQueryParams,
-    headers: Object.keys(headers)
+export function analyzeApiRequest(event: HandlerEvent): RequestAnalysis {
+  const analysis: RequestAnalysis = {
+    httpMethod: event.httpMethod,
+    hasBody: !!event.body,
+    bodySize: event.body ? event.body.length : null,
+    hasCorsHeaders: !!event.headers['access-control-request-method'] || 
+                   !!event.headers['origin'],
+    hasJsonContentType: (event.headers['content-type'] || '').includes('application/json'),
+    hasAuthHeaders: !!event.headers['authorization'],
+    referrer: event.headers['referer'] || null,
+    userAgent: event.headers['user-agent'] || null,
+    clientIp: event.headers['client-ip'] || event.headers['x-forwarded-for'] || null
   };
+
+  console.log('[analyzeApiRequest] Análise da requisição:', JSON.stringify(analysis, null, 2));
+  
+  // Verificar problemas comuns
+  if (analysis.httpMethod === 'POST' && !analysis.hasBody) {
+    console.warn('[analyzeApiRequest] AVISO: Requisição POST sem corpo');
+  }
+  
+  if (analysis.httpMethod === 'POST' && !analysis.hasJsonContentType) {
+    console.warn('[analyzeApiRequest] AVISO: Requisição POST sem Content-Type JSON');
+  }
+  
+  return analysis;
 }
