@@ -1,5 +1,6 @@
 
 import { ApiTestResult } from '../types';
+import fetch from 'node-fetch';
 
 /**
  * Testa uma chave API do Asaas
@@ -18,10 +19,6 @@ export async function testApiKey(apiKey: string, isSandbox: boolean): Promise<Ap
     // Sanitizar a chave para remover espaços, quebras de linha, etc.
     const sanitizedKey = apiKey.trim();
 
-    // Use dynamic import for node-fetch to support both browser and Node environments
-    const fetchModule = await import('node-fetch').catch(() => null);
-    const fetch = fetchModule?.default || global.fetch;
-    
     const response = await fetch(url, {
       method: 'GET',
       headers: {
