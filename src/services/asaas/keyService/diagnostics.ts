@@ -1,4 +1,3 @@
-
 import { ApiTestResult } from '../types';
 import fetch from 'node-fetch';
 
