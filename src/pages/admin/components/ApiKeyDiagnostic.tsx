@@ -1,10 +1,9 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, AlertCircle, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { testApiKey } from '@/services/asaas/keyService';
+import { diagnoseApiKey } from '@/services/asaas/keyService';
 import { AsaasEnvironment } from '@/services/asaas/types';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -22,8 +21,7 @@ const ApiKeyDiagnostic = () => {
       const isSandbox = environment === 'sandbox';
       
       // Rodar diagnóstico local primeiro
-      // Instead of using diagnoseApiKey, we'll use testApiKey
-      const localResult = await testApiKey('', isSandbox); // Vazio porque vai pegar do Supabase
+      const localResult = await diagnoseApiKey('', isSandbox); // Vazio porque vai pegar do Supabase
       setDiagnosticResult(localResult);
       
       // Então rodar o diagnóstico completo do servidor
@@ -121,7 +119,7 @@ const ApiKeyDiagnostic = () => {
                     <div className="space-y-2">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Status:</span>
-                        <Badge variant={diagnosticResult.success ? "default" : "destructive"}>
+                        <Badge variant={diagnosticResult.success ? "success" : "destructive"}>
                           {diagnosticResult.success ? 'Sucesso' : 'Falha'}
                         </Badge>
                       </div>
@@ -190,7 +188,7 @@ const ApiKeyDiagnostic = () => {
                         <>
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Resultado:</span>
-                            <Badge variant={serverDiagnosticResult.diagnosticResults.summary.success ? "default" : "destructive"}>
+                            <Badge variant={serverDiagnosticResult.diagnosticResults.summary.success ? "success" : "destructive"}>
                               {serverDiagnosticResult.diagnosticResults.summary.success ? 'Sucesso' : 'Falha'}
                             </Badge>
                           </div>
@@ -206,19 +204,19 @@ const ApiKeyDiagnostic = () => {
                           </div>
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Formato da chave:</span>
-                            <Badge variant={serverDiagnosticResult.diagnosticResults.summary.keyFormat ? "default" : "destructive"}>
+                            <Badge variant={serverDiagnosticResult.diagnosticResults.summary.keyFormat ? "success" : "destructive"}>
                               {serverDiagnosticResult.diagnosticResults.summary.keyFormat ? 'Válido' : 'Inválido'}
                             </Badge>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Conectividade:</span>
-                            <Badge variant={serverDiagnosticResult.diagnosticResults.summary.connectivity ? "default" : "destructive"}>
+                            <Badge variant={serverDiagnosticResult.diagnosticResults.summary.connectivity ? "success" : "destructive"}>
                               {serverDiagnosticResult.diagnosticResults.summary.connectivity ? 'OK' : 'Falha'}
                             </Badge>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Autenticação:</span>
-                            <Badge variant={serverDiagnosticResult.diagnosticResults.summary.authentication ? "default" : "destructive"}>
+                            <Badge variant={serverDiagnosticResult.diagnosticResults.summary.authentication ? "success" : "destructive"}>
                               {serverDiagnosticResult.diagnosticResults.summary.authentication ? 'OK' : 'Falha'}
                             </Badge>
                           </div>
@@ -311,7 +309,7 @@ const ApiKeyDiagnostic = () => {
                             <div className="space-y-2 text-sm">
                               <div className="flex justify-between">
                                 <span className="text-muted-foreground">Status:</span>
-                                <Badge variant={value.success ? "default" : "destructive"}>
+                                <Badge variant={value.success ? "success" : "destructive"}>
                                   {value.success ? 'Sucesso' : 'Falha'}
                                 </Badge>
                               </div>
