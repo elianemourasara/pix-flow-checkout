@@ -1,9 +1,11 @@
+
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Database, KeyRound, Code, FileCode, ShieldCheck, Server, Globe } from 'lucide-react';
+import { Database, KeyRound, Code, FileCode, ShieldCheck, Server, Globe, AlertTriangle, CheckCircle2, Network, Bug } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const ApiInformation = () => {
   return (
@@ -15,7 +17,7 @@ const ApiInformation = () => {
         </p>
       </div>
 
-      <Tabs defaultValue="supabase">
+      <Tabs defaultValue="netlify">
         <TabsList className="grid w-full md:w-[600px] grid-cols-3">
           <TabsTrigger value="supabase">
             <Database className="h-4 w-4 mr-2" />
@@ -318,23 +320,35 @@ const supabase = createClient(supabaseUrl, supabaseKey);`}
         <TabsContent value="netlify" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Variáveis de Ambiente Netlify</CardTitle>
+              <CardTitle className="flex items-center">
+                <Server className="h-5 w-5 mr-2 text-blue-600" />
+                Variáveis de Ambiente Netlify
+              </CardTitle>
               <CardDescription>
                 Configuração necessária para o deploy em produção
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <Alert className="bg-amber-50 border-amber-200">
+                <AlertTriangle className="h-4 w-4 text-amber-700" />
+                <AlertTitle className="text-amber-800">Checklist de Implantação</AlertTitle>
+                <AlertDescription className="text-amber-700">
+                  Verifique se todas as variáveis abaixo estão configuradas corretamente no painel do Netlify antes de fazer deploy em produção.
+                </AlertDescription>
+              </Alert>
+
               <div className="p-4 bg-primary/5 rounded-md">
                 <h3 className="font-medium flex items-center"><Server className="h-5 w-5 mr-2 text-blue-600" /> Variáveis Asaas</h3>
-                <p className="text-sm text-muted-foreground mt-1">
+                <p className="text-sm text-muted-foreground mt-1 mb-4">
                   Configuração das variáveis de ambiente para o Asaas nas funções Netlify:
                 </p>
-                <Table className="mt-4">
+                <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Nome da Variável</TableHead>
                       <TableHead>Valor</TableHead>
                       <TableHead>Observação</TableHead>
+                      <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -345,17 +359,23 @@ const supabase = createClient(supabaseUrl, supabaseKey);`}
                       </TableCell>
                       <TableCell>
                         <span className="text-sm">
-                          Controla o ambiente (produção ou sandbox). Use <strong>true</strong> para produção e <strong>false</strong> para sandbox.
+                          <strong>OBRIGATÓRIO</strong>. Controla o ambiente (produção ou sandbox). Para produção, deve ser <strong>EXATAMENTE</strong> a string <code className="bg-slate-100 px-1">"true"</code>.
                         </span>
                       </TableCell>
+                      <TableCell>
+                        <CheckCircle2 className="h-5 w-5 text-green-600" />
+                      </TableCell>
                     </TableRow>
-                    <TableRow>
+                    <TableRow className="bg-amber-50/50">
                       <TableCell className="font-mono text-xs">ASAAS_API_PRODUCTION_KEY_1</TableCell>
                       <TableCell>
                         <Badge variant="secondary">$aact_...</Badge>
                       </TableCell>
                       <TableCell>
-                        <span className="text-sm">Chave de produção primária (prioridade 1)</span>
+                        <span className="text-sm"><strong>OBRIGATÓRIO</strong>. Deve começar com <code className="bg-slate-100 px-1">$aact_</code>. Não pode conter espaços, quebras de linha ou aspas.</span>
+                      </TableCell>
+                      <TableCell>
+                        <AlertTriangle className="h-5 w-5 text-amber-500" />
                       </TableCell>
                     </TableRow>
                     <TableRow>
@@ -364,7 +384,10 @@ const supabase = createClient(supabaseUrl, supabaseKey);`}
                         <Badge variant="secondary">$aact_...</Badge>
                       </TableCell>
                       <TableCell>
-                        <span className="text-sm">Chave de produção secundária (prioridade 2, opcional)</span>
+                        <span className="text-sm">Chave secundária de failover (opcional). Mesmo formato da chave 1.</span>
+                      </TableCell>
+                      <TableCell>
+                        <CheckCircle2 className="h-5 w-5 text-green-600" />
                       </TableCell>
                     </TableRow>
                     <TableRow>
@@ -373,7 +396,10 @@ const supabase = createClient(supabaseUrl, supabaseKey);`}
                         <Badge variant="secondary">$aact_...</Badge>
                       </TableCell>
                       <TableCell>
-                        <span className="text-sm">Chave de produção terciária (prioridade 3, opcional)</span>
+                        <span className="text-sm">Chave terciária de failover (opcional). Mesmo formato da chave 1.</span>
+                      </TableCell>
+                      <TableCell>
+                        <CheckCircle2 className="h-5 w-5 text-green-600" />
                       </TableCell>
                     </TableRow>
                     <TableRow>
@@ -382,7 +408,10 @@ const supabase = createClient(supabaseUrl, supabaseKey);`}
                         <Badge variant="secondary">$aact_...</Badge>
                       </TableCell>
                       <TableCell>
-                        <span className="text-sm">Chave de produção quaternária (prioridade 4, opcional)</span>
+                        <span className="text-sm">Chave quaternária de failover (opcional). Mesmo formato da chave 1.</span>
+                      </TableCell>
+                      <TableCell>
+                        <CheckCircle2 className="h-5 w-5 text-green-600" />
                       </TableCell>
                     </TableRow>
                     <TableRow>
@@ -391,7 +420,10 @@ const supabase = createClient(supabaseUrl, supabaseKey);`}
                         <Badge variant="secondary">$aact_...</Badge>
                       </TableCell>
                       <TableCell>
-                        <span className="text-sm">Chave de produção quinária (prioridade 5, opcional)</span>
+                        <span className="text-sm">Chave quinária de failover (opcional). Mesmo formato da chave 1.</span>
+                      </TableCell>
+                      <TableCell>
+                        <CheckCircle2 className="h-5 w-5 text-green-600" />
                       </TableCell>
                     </TableRow>
                     <TableRow>
@@ -400,33 +432,47 @@ const supabase = createClient(supabaseUrl, supabaseKey);`}
                         <Badge variant="secondary">$aact_sandbox_...</Badge>
                       </TableCell>
                       <TableCell>
-                        <span className="text-sm">Chave de sandbox para testes</span>
+                        <span className="text-sm">Chave de sandbox para testes (obrigatória para ambiente de desenvolvimento).</span>
+                      </TableCell>
+                      <TableCell>
+                        <CheckCircle2 className="h-5 w-5 text-green-600" />
                       </TableCell>
                     </TableRow>
                   </TableBody>
                 </Table>
                 
-                <div className="mt-4 p-3 bg-amber-50/80 border border-amber-200 rounded-md">
-                  <h4 className="text-amber-800 font-medium">⚠️ Importante: Formato das Chaves</h4>
+                <div className="mt-6 p-3 bg-amber-50/80 border border-amber-200 rounded-md">
+                  <h4 className="text-amber-800 font-medium flex items-center">
+                    <AlertTriangle className="h-4 w-4 mr-2 text-amber-700" />
+                    Formato das Chaves Asaas
+                  </h4>
                   <p className="text-sm text-amber-700 mt-1">
-                    As chaves Asaas devem sempre começar com <code className="bg-amber-100 px-1">$aact_</code> para produção 
-                    e <code className="bg-amber-100 px-1">$aact_sandbox_</code> para sandbox. 
-                    Não inclua espaços, aspas ou caracteres invisíveis nas chaves.
+                    As chaves Asaas devem sempre:
                   </p>
+                  <ul className="list-disc list-inside text-sm text-amber-700 mt-1 space-y-1">
+                    <li>Começar com <code className="bg-amber-100 px-1">$aact_</code> para produção</li>
+                    <li>Começar com <code className="bg-amber-100 px-1">$aact_sandbox_</code> para sandbox</li>
+                    <li><strong>NÃO</strong> conter espaços em branco</li>
+                    <li><strong>NÃO</strong> conter aspas (simples ou duplas) envolvendo a chave</li>
+                    <li><strong>NÃO</strong> conter quebras de linha (CR/LF)</li>
+                    <li><strong>NÃO</strong> conter caracteres invisíveis (espaços não-quebráveis, etc)</li>
+                    <li><strong>NÃO</strong> ser uma chave expirada ou revogada na plataforma Asaas</li>
+                  </ul>
                 </div>
               </div>
 
               <div className="p-4 bg-primary/5 rounded-md">
                 <h3 className="font-medium flex items-center"><Database className="h-5 w-5 mr-2 text-emerald-600" /> Variáveis Supabase</h3>
-                <p className="text-sm text-muted-foreground mt-1">
+                <p className="text-sm text-muted-foreground mt-1 mb-4">
                   Configuração das variáveis de ambiente para o Supabase nas funções Netlify:
                 </p>
-                <Table className="mt-4">
+                <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Nome da Variável</TableHead>
                       <TableHead>Valor</TableHead>
                       <TableHead>Observação</TableHead>
+                      <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -436,7 +482,10 @@ const supabase = createClient(supabaseUrl, supabaseKey);`}
                         <Badge variant="secondary">https://onysoawoiffinwewtsex.supabase.co</Badge>
                       </TableCell>
                       <TableCell>
-                        <span className="text-sm">URL do projeto Supabase</span>
+                        <span className="text-sm"><strong>OBRIGATÓRIO</strong>. URL do projeto Supabase.</span>
+                      </TableCell>
+                      <TableCell>
+                        <CheckCircle2 className="h-5 w-5 text-green-600" />
                       </TableCell>
                     </TableRow>
                     <TableRow>
@@ -445,7 +494,10 @@ const supabase = createClient(supabaseUrl, supabaseKey);`}
                         <Badge variant="secondary">eyJhbG...</Badge>
                       </TableCell>
                       <TableCell>
-                        <span className="text-sm">Chave de serviço (service role) do Supabase - <strong>Não</strong> use a chave anon/pública</span>
+                        <span className="text-sm"><strong>OBRIGATÓRIO</strong>. Service Role Key do Supabase - <strong>NÃO</strong> usar a chave anon/pública.</span>
+                      </TableCell>
+                      <TableCell>
+                        <CheckCircle2 className="h-5 w-5 text-green-600" />
                       </TableCell>
                     </TableRow>
                     <TableRow>
@@ -454,14 +506,20 @@ const supabase = createClient(supabaseUrl, supabaseKey);`}
                         <Badge variant="secondary">eyJhbG...</Badge>
                       </TableCell>
                       <TableCell>
-                        <span className="text-sm">Chave anônima (pública) do Supabase</span>
+                        <span className="text-sm"><strong>OBRIGATÓRIO</strong>. Chave anônima (pública) do Supabase.</span>
+                      </TableCell>
+                      <TableCell>
+                        <CheckCircle2 className="h-5 w-5 text-green-600" />
                       </TableCell>
                     </TableRow>
                   </TableBody>
                 </Table>
                 
-                <div className="mt-4 p-3 bg-emerald-50/80 border border-emerald-200 rounded-md">
-                  <h4 className="text-emerald-800 font-medium">✓ Importante: Segurança das Chaves</h4>
+                <div className="mt-6 p-3 bg-emerald-50/80 border border-emerald-200 rounded-md">
+                  <h4 className="text-emerald-800 font-medium flex items-center">
+                    <ShieldCheck className="h-4 w-4 mr-2 text-emerald-700" />
+                    Segurança das Chaves
+                  </h4>
                   <p className="text-sm text-emerald-700 mt-1">
                     A <code className="bg-emerald-100 px-1">SUPABASE_SERVICE_ROLE_KEY</code> possui permissões elevadas e <strong>nunca</strong> deve ser 
                     exposta no frontend. Use-a apenas nas funções Netlify.
@@ -469,7 +527,60 @@ const supabase = createClient(supabaseUrl, supabaseKey);`}
                 </div>
               </div>
 
-              <Card className="border border-blue-100">
+              <div className="p-4 bg-primary/5 rounded-md">
+                <h3 className="font-medium flex items-center"><Bug className="h-5 w-5 mr-2 text-violet-600" /> Variáveis para Depuração</h3>
+                <p className="text-sm text-muted-foreground mt-1 mb-4">
+                  Variáveis opcionais para depuração e diagnóstico:
+                </p>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nome da Variável</TableHead>
+                      <TableHead>Valor</TableHead>
+                      <TableHead>Observação</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell className="font-mono text-xs">DEBUG_ASAAS_KEYS</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">true</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">
+                          Ativa logs detalhados para diagnóstico de chaves API. 
+                          <strong className="text-amber-600"> Usar apenas em ambientes de dev/homolog!</strong>
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-mono text-xs">DEBUG_PAYMENT_FLOW</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">true</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">
+                          Ativa logs detalhados do fluxo de pagamento. 
+                          <strong className="text-amber-600"> Usar apenas em ambientes de dev/homolog!</strong>
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-mono text-xs">LOG_LEVEL</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">debug</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">
+                          Define o nível de detalhamento dos logs. Opções: error, warn, info, debug.
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+
+              <Card className="mt-4 border border-blue-100">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-lg flex items-center">
                     <Globe className="h-5 w-5 mr-2 text-blue-600" />
@@ -482,42 +593,128 @@ const supabase = createClient(supabaseUrl, supabaseKey);`}
                   </p>
                   <div className="mt-3 flex flex-col space-y-2">
                     <div className="p-2 bg-blue-50 rounded-md">
-                      <p className="text-xs font-mono">/api/check-asaas-keys?sandbox=true</p>
-                      <p className="text-xs text-blue-700">Verifica configuração das chaves sandbox</p>
-                    </div>
-                    <div className="p-2 bg-blue-50 rounded-md">
-                      <p className="text-xs font-mono">/api/check-asaas-keys?sandbox=false</p>
-                      <p className="text-xs text-blue-700">Verifica configuração das chaves de produção</p>
+                      <p className="text-xs font-mono">/api/check-asaas-keys</p>
+                      <p className="text-xs text-blue-700">Verifica configuração das chaves configuradas</p>
                     </div>
                     <div className="p-2 bg-blue-50 rounded-md">
                       <p className="text-xs font-mono">/api/asaas-diagnostic</p>
                       <p className="text-xs text-blue-700">Diagnóstico completo da integração Asaas</p>
                     </div>
+                    <div className="p-2 bg-blue-50 rounded-md">
+                      <p className="text-xs font-mono">/api/check-env</p>
+                      <p className="text-xs text-blue-700">Verifica variáveis de ambiente disponíveis</p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <div className="p-4 bg-green-50/50 border border-green-100 rounded-md">
-                <h3 className="font-medium text-green-800">✅ Configuração Recomendada</h3>
-                <p className="text-sm text-green-700 mt-1">
-                  Para o funcionamento ideal do sistema, recomendamos:
+              <div className="p-4 bg-primary/5 rounded-md">
+                <h3 className="font-medium flex items-center"><Network className="h-5 w-5 mr-2 text-purple-600" /> Configurações do Node.js</h3>
+                <p className="text-sm text-muted-foreground mt-1 mb-4">
+                  Configuração do ambiente Node.js para as funções Netlify:
                 </p>
-                <ul className="list-disc list-inside text-sm mt-2 space-y-1 text-green-700">
-                  <li>Definir todas as variáveis acima no painel do Netlify</li>
-                  <li>Utilizar no mínimo duas chaves Asaas para failover em produção</li>
-                  <li>Configurar <code className="bg-green-100 px-1">USE_ASAAS_PRODUCTION=false</code> para testes iniciais</li>
-                  <li>Configurar <code className="bg-green-100 px-1">USE_ASAAS_PRODUCTION=true</code> apenas após testes completos</li>
-                  <li>Verificar o formato correto das chaves de API antes de salvar</li>
-                </ul>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nome da Variável</TableHead>
+                      <TableHead>Valor Recomendado</TableHead>
+                      <TableHead>Observação</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell className="font-mono text-xs">NODE_VERSION</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">18.18.0</Badge> ou superior
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">
+                          <strong>OBRIGATÓRIO</strong>. O projeto requer no mínimo Node.js 18.18.0 para compatibilidade com pacotes ESM e ESLint.
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-mono text-xs">NPM_VERSION</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">9.6.7</Badge> ou superior
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">
+                          <strong>OBRIGATÓRIO</strong>. Versão do NPM compatível com a estrutura de dependências do projeto.
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
               </div>
+
+              <div className="p-4 bg-green-50/50 border border-green-100 rounded-md">
+                <h3 className="font-medium text-green-800 flex items-center">
+                  <CheckCircle2 className="h-5 w-5 mr-2 text-green-700" />
+                  Checklist de Implantação
+                </h3>
+                <p className="text-sm text-green-700 mt-1">
+                  Verifique os seguintes itens antes de fazer deploy em produção:
+                </p>
+                <div className="mt-3 space-y-2 text-sm text-green-700">
+                  <div className="flex items-start">
+                    <CheckCircle2 className="h-4 w-4 mr-2 mt-0.5 text-green-600" />
+                    <p>O arquivo <code className="bg-green-100 px-1">netlify.toml</code> está configurado corretamente com <code className="bg-green-100 px-1">functions = "netlify/functions"</code></p>
+                  </div>
+                  <div className="flex items-start">
+                    <CheckCircle2 className="h-4 w-4 mr-2 mt-0.5 text-green-600" />
+                    <p>O bundler está configurado como <code className="bg-green-100 px-1">node_bundler = "esbuild"</code> no netlify.toml</p>
+                  </div>
+                  <div className="flex items-start">
+                    <CheckCircle2 className="h-4 w-4 mr-2 mt-0.5 text-green-600" />
+                    <p>O pacote <code className="bg-green-100 px-1">node-fetch</code> está listado em <code className="bg-green-100 px-1">package.json</code> como dependência</p>
+                  </div>
+                  <div className="flex items-start">
+                    <CheckCircle2 className="h-4 w-4 mr-2 mt-0.5 text-green-600" />
+                    <p>A variável <code className="bg-green-100 px-1">USE_ASAAS_PRODUCTION</code> está definida como <code className="bg-green-100 px-1">"true"</code> (string) para produção</p>
+                  </div>
+                  <div className="flex items-start">
+                    <CheckCircle2 className="h-4 w-4 mr-2 mt-0.5 text-green-600" />
+                    <p>Todas as chaves API estão sem espaços ou caracteres invisíveis</p>
+                  </div>
+                  <div className="flex items-start">
+                    <CheckCircle2 className="h-4 w-4 mr-2 mt-0.5 text-green-600" />
+                    <p>O arquivo <code className="bg-green-100 px-1">src/services/asaas/keyService/index.ts</code> exporta corretamente a função <code className="bg-green-100 px-1">diagnoseApiKey</code></p>
+                  </div>
+                </div>
+              </div>
+
+              <Alert className="bg-blue-50 border border-blue-200">
+                <AlertTitle className="text-blue-800 flex items-center">
+                  <Bug className="h-4 w-4 mr-2 text-blue-700" />
+                  Solução para erro 401 na API Asaas
+                </AlertTitle>
+                <AlertDescription className="text-blue-700">
+                  <p className="text-sm mt-1 mb-2">
+                    Se você receber o erro 401 (Não autorizado) ao tentar usar as funções Netlify que chamam a API do Asaas, verifique:
+                  </p>
+                  <ol className="list-decimal list-inside space-y-1 text-sm">
+                    <li>Se a chave API está correta e sem caracteres invisíveis</li>
+                    <li>Se <code className="bg-blue-100 px-1">USE_ASAAS_PRODUCTION</code> está definida como <code className="bg-blue-100 px-1">"true"</code> (string) para acessar o ambiente de produção</li>
+                    <li>Se você está usando a chave de produção ($aact_) quando USE_ASAAS_PRODUCTION=true</li>
+                    <li>Se você está usando a chave de sandbox ($aact_sandbox_) quando USE_ASAAS_PRODUCTION=false</li>
+                    <li>Se a chave não expirou ou foi revogada na plataforma Asaas</li>
+                    <li>Se você está chamando a API correta (sandbox vs produção)</li>
+                    <li>Se o diagnóstico da chave em <code className="bg-blue-100 px-1">/api/asaas-diagnostic</code> indica algum problema específico</li>
+                  </ol>
+                  <p className="text-sm mt-2">
+                    Se o problema persistir, crie uma função de diagnóstico temporária que imprima os detalhes completos da chave e da requisição para debugging.
+                  </p>
+                </AlertDescription>
+              </Alert>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>Configurações de Build</CardTitle>
+              <CardTitle>Configurações do netlify.toml</CardTitle>
               <CardDescription>
-                Configurações importantes do netlify.toml do projeto
+                Configurações importantes para o funcionamento correto das funções
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -525,7 +722,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);`}
                 <div className="p-4 bg-primary/5 rounded-md">
                   <h3 className="font-medium">Configuração de Build</h3>
                   <p className="text-sm text-muted-foreground mt-1">
-                    O arquivo netlify.toml define as configurações de build:
+                    O arquivo netlify.toml deve conter:
                   </p>
                   <pre className="bg-black/90 text-white p-3 rounded-md text-xs mt-2 overflow-auto">
 {`[build]
@@ -534,7 +731,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);`}
   functions = "netlify/functions"
 
 [build.environment]
-  NODE_VERSION = "18.17.0"
+  NODE_VERSION = "18.18.0"
   NPM_VERSION = "9.6.7"
   SECRETS_SCAN_ENABLED = "false"`}
                   </pre>
@@ -569,6 +766,160 @@ const supabase = createClient(supabaseUrl, supabaseKey);`}
   status = 200
   force = true`}
                   </pre>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Roadmap para Diagnóstico de Erros</CardTitle>
+              <CardDescription>
+                Passos recomendados para diagnosticar e corrigir problemas com a API Asaas
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="p-4 bg-primary/5 rounded-md">
+                  <ol className="list-decimal list-inside space-y-3">
+                    <li className="font-medium">
+                      Validar manualmente a chave da Asaas
+                      <p className="text-sm text-muted-foreground mt-1 ml-6">
+                        Use curl ou Postman para testar a chave API diretamente:
+                      </p>
+                      <pre className="bg-black/90 text-white p-3 rounded-md text-xs mt-1 ml-6 overflow-auto">
+{`curl -X GET "https://api.asaas.com/api/v3/status" \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer \$aact_YourActualKey"`}
+                      </pre>
+                    </li>
+
+                    <li className="font-medium">
+                      Verificar configurações de ambiente no Netlify
+                      <p className="text-sm text-muted-foreground mt-1 ml-6">
+                        Confirme que <code>USE_ASAAS_PRODUCTION</code> esteja definido como <code>"true"</code> (string) 
+                        e que a chave de produção esteja configurada corretamente.
+                      </p>
+                    </li>
+
+                    <li className="font-medium">
+                      Implementar função de diagnóstico
+                      <p className="text-sm text-muted-foreground mt-1 ml-6">
+                        Crie uma função temporária que imprima detalhes da chave e do ambiente:
+                      </p>
+                      <pre className="bg-black/90 text-white p-3 rounded-md text-xs mt-1 ml-6 overflow-auto">
+{`// netlify/functions/check-asaas-env.js
+exports.handler = async () => {
+  try {
+    const envDetails = {
+      useProduction: process.env.USE_ASAAS_PRODUCTION,
+      hasProductionKey: !!process.env.ASAAS_API_PRODUCTION_KEY_1,
+      hasSandboxKey: !!process.env.ASAAS_API_SANDBOX_KEY,
+      keyFormat: {
+        firstChars: process.env.ASAAS_API_PRODUCTION_KEY_1 ? 
+          process.env.ASAAS_API_PRODUCTION_KEY_1.substring(0, 6) : null,
+        length: process.env.ASAAS_API_PRODUCTION_KEY_1 ? 
+          process.env.ASAAS_API_PRODUCTION_KEY_1.length : 0,
+        containsSpaces: process.env.ASAAS_API_PRODUCTION_KEY_1 ? 
+          process.env.ASAAS_API_PRODUCTION_KEY_1.includes(' ') : null
+      },
+      nodeInfo: {
+        version: process.version,
+        env: process.env.NODE_ENV
+      }
+    };
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(envDetails)
+    }
+  } catch (error) {
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: error.message })
+    }
+  }
+}`}
+                      </pre>
+                    </li>
+
+                    <li className="font-medium">
+                      Validar formato da chave
+                      <p className="text-sm text-muted-foreground mt-1 ml-6">
+                        Certifique-se de que a chave esteja no formato correto:
+                      </p>
+                      <ul className="list-disc list-inside text-sm ml-6">
+                        <li>Deve começar com <code>$aact_</code> (produção) ou <code>$aact_sandbox_</code> (sandbox)</li>
+                        <li>Não deve conter espaços, quebras de linha ou aspas</li>
+                        <li>Recodifique a chave se necessário para garantir compatibilidade UTF-8</li>
+                      </ul>
+                    </li>
+
+                    <li className="font-medium">
+                      Verificar sanitização da chave
+                      <p className="text-sm text-muted-foreground mt-1 ml-6">
+                        Certifique-se de que o código esteja sanitizando a chave corretamente antes do uso:
+                      </p>
+                      <pre className="bg-black/90 text-white p-3 rounded-md text-xs mt-1 ml-6 overflow-auto">
+{`// Sanitização correta da chave API
+const sanitizedKey = apiKey.trim().replace(/\\s+/g, '');
+// Verificar se a chave sanitizada tem o formato esperado
+if (!sanitizedKey.startsWith('$aact_')) {
+  console.error('Formato de chave inválido');
+}`}
+                      </pre>
+                    </li>
+
+                    <li className="font-medium">
+                      Verificar cabeçalhos de autenticação
+                      <p className="text-sm text-muted-foreground mt-1 ml-6">
+                        Confirme que os cabeçalhos de autorização estão sendo enviados corretamente:
+                      </p>
+                      <pre className="bg-black/90 text-white p-3 rounded-md text-xs mt-1 ml-6 overflow-auto">
+{`// Header de autorização correto
+const headers = {
+  'Content-Type': 'application/json',
+  'Authorization': \`Bearer \${sanitizedKey}\`  // Formato correto
+};`}
+                      </pre>
+                    </li>
+
+                    <li className="font-medium">
+                      Implementar retry com exponential backoff
+                      <p className="text-sm text-muted-foreground mt-1 ml-6">
+                        Adicione lógica de retry para lidar com falhas temporárias de API:
+                      </p>
+                      <pre className="bg-black/90 text-white p-3 rounded-md text-xs mt-1 ml-6 overflow-auto">
+{`async function fetchWithRetry(url, options, maxRetries = 3) {
+  let lastError;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      if (response.ok) return response;
+      lastError = new Error(\`Status \${response.status}\`);
+    } catch (error) {
+      lastError = error;
+    }
+    // Exponential backoff delay
+    await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
+  }
+  throw lastError;
+}`}
+                      </pre>
+                    </li>
+
+                    <li className="font-medium">
+                      Verificar dependências e compatibilidade
+                      <p className="text-sm text-muted-foreground mt-1 ml-6">
+                        Garanta que todas as dependências estão instaladas e são compatíveis:
+                      </p>
+                      <ul className="list-disc list-inside text-sm ml-6">
+                        <li>Certifique-se de que <code>node-fetch</code> está na versão compatível com Node.js 18+</li>
+                        <li>Considere usar <code>undici</code> se <code>node-fetch</code> apresentar problemas</li>
+                        <li>Verifique se <code>external_node_modules = ["encoding"]</code> está no netlify.toml</li>
+                      </ul>
+                    </li>
+                  </ol>
                 </div>
               </div>
             </CardContent>
