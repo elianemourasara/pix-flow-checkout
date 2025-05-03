@@ -1,15 +1,18 @@
 
+
 // Re-export all key service functionality
 export * from './activeKeyService';
 export * from './keyManagement';
 
-// Export from keyTesting.ts with everything except diagnoseApiKey (since it conflicts with diagnostics.ts)
+// Export from keyTesting.ts but avoid exporting diagnoseApiKey from there
+// since we're exporting it from diagnostics.ts
 export { 
   testApiKey,
   testCustomerCreation
 } from './keyTesting';
 
-// Export diagnoseApiKey from diagnostics.ts explicitly
+// Export diagnoseApiKey explicitly from diagnostics.ts
 export { diagnoseApiKey } from './diagnostics';
 
 export * from './types';
+
