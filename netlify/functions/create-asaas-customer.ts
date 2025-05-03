@@ -85,6 +85,11 @@ const handler: Handler = async (event: HandlerEvent) => {
 
     // Obter chave API com detalhes expandidos
     const apiKey = await getAsaasApiKey(isSandbox);
+console.log("[DEBUG] Tipo:", typeof apiKey);
+console.log("[DEBUG] Tamanho:", apiKey.length);
+console.log("[DEBUG] Caracteres invisíveis?", /[\u200B\u200C\u200D\uFEFF]/.test(apiKey));
+console.log("[DEBUG] Tem quebra de linha?", apiKey.includes('\n') || apiKey.includes('\r'));
+
     if (!apiKey) {
       console.error(`[create-asaas-customer] ERRO CRÍTICO: Nenhuma chave API ${isSandbox ? 'sandbox' : 'produção'} configurada.`);
       return {
