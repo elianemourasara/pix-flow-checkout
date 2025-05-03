@@ -3,7 +3,7 @@ import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Database, KeyRound, Code, FileCode } from 'lucide-react';
+import { Database, KeyRound, Code, FileCode, ShieldCheck } from 'lucide-react';
 
 const ApiInformation = () => {
   return (
@@ -151,14 +151,30 @@ const supabase = createClient(supabaseUrl, supabaseKey);`}
             <CardContent>
               <div className="space-y-4">
                 <div className="p-4 bg-primary/5 rounded-md">
-                  <h3 className="font-medium">Armazenamento das Chaves Asaas</h3>
+                  <h3 className="font-medium">Gerenciamento de Chaves Asaas</h3>
                   <p className="text-sm text-muted-foreground mt-1">
-                    As chaves da API Asaas são armazenadas na tabela <code>asaas_config</code> do Supabase:
+                    As chaves da API Asaas agora usam um sistema de gerenciamento mais avançado com:
                   </p>
                   <ul className="list-disc list-inside text-sm mt-2 space-y-1">
-                    <li><code>sandbox_key</code> - Chave da API do ambiente Sandbox</li>
-                    <li><code>production_key</code> - Chave da API do ambiente de Produção</li>
-                    <li><code>sandbox</code> - Flag que indica se está usando o ambiente Sandbox (boolean)</li>
+                    <li>Múltiplas chaves de produção (até 5) com sistema de prioridade</li>
+                    <li>Chaves independentes de sandbox para testes</li>
+                    <li>Tabela <code>asaas_api_keys</code> com controle de status ativo/inativo</li>
+                    <li>Sistema de diagnóstico para validação de chaves</li>
+                    <li>Recuperação automática em caso de falhas (failover)</li>
+                  </ul>
+                </div>
+
+                <div className="p-4 bg-primary/5 rounded-md">
+                  <h3 className="font-medium flex items-center"><ShieldCheck className="h-5 w-5 mr-2 text-green-600" /> Diagnóstico de Integração</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    O sistema agora conta com ferramentas de diagnóstico da API Asaas:
+                  </p>
+                  <ul className="list-disc list-inside text-sm mt-2 space-y-1">
+                    <li>Verificação automática de formato e conteúdo das chaves</li>
+                    <li>Diagnóstico completo de conectividade e autenticação</li>
+                    <li>Testes de permissões das chaves API</li>
+                    <li>Monitoramento do status dos webhooks</li>
+                    <li>Disponível em <code>/admin/asaas-diagnostics</code></li>
                   </ul>
                 </div>
 
@@ -168,25 +184,30 @@ const supabase = createClient(supabaseUrl, supabaseKey);`}
                     <TableHeader>
                       <TableRow>
                         <TableHead>Arquivo</TableHead>
-                        <TableHead>Função/Hook</TableHead>
+                        <TableHead>Funcionalidade</TableHead>
                         <TableHead>Modo de Uso</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       <TableRow>
-                        <TableCell className="font-mono text-xs">src/hooks/useAsaasSettings.ts</TableCell>
-                        <TableCell>useAsaasSettings</TableCell>
-                        <TableCell>Gerenciamento de configurações do Asaas</TableCell>
+                        <TableCell className="font-mono text-xs">src/services/asaas/keyService</TableCell>
+                        <TableCell>Gerenciamento de chaves</TableCell>
+                        <TableCell>Módulo especializado em gerenciar chaves</TableCell>
                       </TableRow>
                       <TableRow>
-                        <TableCell className="font-mono text-xs">src/services/asaasService.ts</TableCell>
-                        <TableCell>generatePixPayment</TableCell>
-                        <TableCell>Geração de pagamentos PIX</TableCell>
+                        <TableCell className="font-mono text-xs">src/hooks/useAsaasKeyManager.ts</TableCell>
+                        <TableCell>Hook de gerenciamento</TableCell>
+                        <TableCell>Interface para gerenciar chaves via UI</TableCell>
                       </TableRow>
                       <TableRow>
-                        <TableCell className="font-mono text-xs">netlify/functions/create-asaas-customer.ts</TableCell>
-                        <TableCell>handler</TableCell>
-                        <TableCell>Criação de cliente e pagamento no Asaas</TableCell>
+                        <TableCell className="font-mono text-xs">src/pages/admin/components/ApiKeyManager.tsx</TableCell>
+                        <TableCell>Interface de administração</TableCell>
+                        <TableCell>Adicionar/remover/ativar chaves</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-mono text-xs">src/pages/admin/components/ApiKeyDiagnostic.tsx</TableCell>
+                        <TableCell>Diagnóstico</TableCell>
+                        <TableCell>Diagnóstico completo da integração</TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>
@@ -197,60 +218,94 @@ const supabase = createClient(supabaseUrl, supabaseKey);`}
 
           <Card>
             <CardHeader>
-              <CardTitle>Asaas nas Funções Netlify</CardTitle>
+              <CardTitle>Ambientes Asaas</CardTitle>
               <CardDescription>
-                Como o Asaas é utilizado nas funções serverless
+                Como os ambientes Sandbox e Produção são gerenciados
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div className="p-4 bg-primary/5 rounded-md">
-                  <h3 className="font-medium">Configuração nas Variáveis de Ambiente</h3>
+                  <h3 className="font-medium">Sistema de Ambiente</h3>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Nas funções Netlify, o Asaas precisa das seguintes variáveis:
+                    O sistema gerencia automaticamente a seleção de ambiente:
                   </p>
                   <ul className="list-disc list-inside text-sm mt-2 space-y-1">
-                    <li><code>ASAAS_API_KEY</code> - Chave da API do Asaas (pode ser sandbox ou produção)</li>
-                    <li><code>ASAAS_API_URL</code> - URL da API (https://sandbox.asaas.com/api/v3 ou https://www.asaas.com/api/v3)</li>
+                    <li>Ambiente configurado via tabela <code>asaas_config</code></li>
+                    <li>Suporte para variável de ambiente <code>USE_ASAAS_PRODUCTION</code></li>
+                    <li>Ambiente sandbox com URL: <code>https://sandbox.asaas.com/api/v3</code></li>
+                    <li>Ambiente produção com URL: <code>https://api.asaas.com/api/v3</code></li>
+                    <li>Diagnóstico automático de configuração de ambiente</li>
                   </ul>
                 </div>
 
-                <div className="p-4 bg-amber-50 border border-amber-200 rounded-md">
-                  <h3 className="font-medium text-amber-800">⚠️ Atenção</h3>
-                  <p className="text-sm text-amber-700 mt-1">
-                    A chave Asaas é obtida da tabela <code>asaas_config</code> do Supabase na função serverless. 
-                    Certifique-se de ter inicializado corretamente o cliente Supabase antes de tentar acessar essa configuração.
+                <div className="p-4 bg-green-50/50 border border-green-100 rounded-md">
+                  <h3 className="font-medium text-green-800">✅ Melhorias de Segurança</h3>
+                  <p className="text-sm text-green-700 mt-1">
+                    O sistema implementa melhorias de segurança para proteção das chaves API:
                   </p>
-                  <pre className="bg-black/90 text-white p-3 rounded-md text-xs mt-2 overflow-auto">
-{`// Exemplo em função Netlify
-async function getAsaasConfig(supabase) {
-  if (!supabase) {
-    throw new Error("Cliente Supabase não inicializado");
-  }
-  
-  const { data, error } = await supabase
-    .from('asaas_config')
-    .select('*')
-    .single();
-    
-  if (error) {
-    throw new Error(\`Erro ao buscar configuração Asaas: \${error.message}\`);
-  }
-  
-  if (!data) {
-    throw new Error("Configuração Asaas não encontrada");
-  }
-  
-  return {
-    apiKey: data.sandbox ? data.sandbox_key : data.production_key,
-    apiUrl: data.sandbox 
-      ? "https://sandbox.asaas.com/api/v3" 
-      : "https://www.asaas.com/api/v3",
-    isSandbox: data.sandbox
-  };
-}`}
-                  </pre>
+                  <ul className="list-disc list-inside text-sm mt-2 space-y-1 text-green-700">
+                    <li>Sanitização automática de chaves para remover espaços e caracteres inválidos</li>
+                    <li>Validação de formato antes de uso (prefixo $aact_)</li>
+                    <li>Rotação de chaves sem interrupção de serviço</li>
+                    <li>Sistema de prioridade para failover automático</li>
+                    <li>Monitoramento e log de problemas de chaves</li>
+                  </ul>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Serviços da API Asaas</CardTitle>
+              <CardDescription>
+                Principais funcionalidades disponíveis via API
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Serviço</TableHead>
+                      <TableHead>Endpoint</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell>Clientes</TableCell>
+                      <TableCell className="font-mono text-xs">/customers</TableCell>
+                      <TableCell><span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">Implementado</span></TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Pagamentos PIX</TableCell>
+                      <TableCell className="font-mono text-xs">/payments</TableCell>
+                      <TableCell><span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">Implementado</span></TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Pagamentos Cartão</TableCell>
+                      <TableCell className="font-mono text-xs">/payments</TableCell>
+                      <TableCell><span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">Implementado</span></TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Webhooks</TableCell>
+                      <TableCell className="font-mono text-xs">/webhook</TableCell>
+                      <TableCell><span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">Implementado</span></TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>QRCode PIX</TableCell>
+                      <TableCell className="font-mono text-xs">/payments/{"{id}"}/pixQrCode</TableCell>
+                      <TableCell><span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">Implementado</span></TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Status de Pagamento</TableCell>
+                      <TableCell className="font-mono text-xs">/payments/{"{id}"}</TableCell>
+                      <TableCell><span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">Implementado</span></TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
               </div>
             </CardContent>
           </Card>
