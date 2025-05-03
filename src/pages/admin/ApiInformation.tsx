@@ -1,9 +1,9 @@
-
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Database, KeyRound, Code, FileCode, ShieldCheck } from 'lucide-react';
+import { Database, KeyRound, Code, FileCode, ShieldCheck, Server, Globe } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 const ApiInformation = () => {
   return (
@@ -16,7 +16,7 @@ const ApiInformation = () => {
       </div>
 
       <Tabs defaultValue="supabase">
-        <TabsList className="grid w-full md:w-[400px] grid-cols-2">
+        <TabsList className="grid w-full md:w-[600px] grid-cols-3">
           <TabsTrigger value="supabase">
             <Database className="h-4 w-4 mr-2" />
             Supabase
@@ -24,6 +24,10 @@ const ApiInformation = () => {
           <TabsTrigger value="asaas">
             <KeyRound className="h-4 w-4 mr-2" />
             Asaas
+          </TabsTrigger>
+          <TabsTrigger value="netlify">
+            <Server className="h-4 w-4 mr-2" />
+            Netlify
           </TabsTrigger>
         </TabsList>
 
@@ -306,6 +310,266 @@ const supabase = createClient(supabaseUrl, supabaseKey);`}
                     </TableRow>
                   </TableBody>
                 </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="netlify" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Variáveis de Ambiente Netlify</CardTitle>
+              <CardDescription>
+                Configuração necessária para o deploy em produção
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-4 bg-primary/5 rounded-md">
+                <h3 className="font-medium flex items-center"><Server className="h-5 w-5 mr-2 text-blue-600" /> Variáveis Asaas</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Configuração das variáveis de ambiente para o Asaas nas funções Netlify:
+                </p>
+                <Table className="mt-4">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nome da Variável</TableHead>
+                      <TableHead>Valor</TableHead>
+                      <TableHead>Observação</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell className="font-mono text-xs">USE_ASAAS_PRODUCTION</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">true</Badge> ou <Badge variant="secondary">false</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">
+                          Controla o ambiente (produção ou sandbox). Use <strong>true</strong> para produção e <strong>false</strong> para sandbox.
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-mono text-xs">ASAAS_API_PRODUCTION_KEY_1</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">$aact_...</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">Chave de produção primária (prioridade 1)</span>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-mono text-xs">ASAAS_API_PRODUCTION_KEY_2</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">$aact_...</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">Chave de produção secundária (prioridade 2, opcional)</span>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-mono text-xs">ASAAS_API_PRODUCTION_KEY_3</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">$aact_...</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">Chave de produção terciária (prioridade 3, opcional)</span>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-mono text-xs">ASAAS_API_PRODUCTION_KEY_4</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">$aact_...</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">Chave de produção quaternária (prioridade 4, opcional)</span>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-mono text-xs">ASAAS_API_PRODUCTION_KEY_5</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">$aact_...</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">Chave de produção quinária (prioridade 5, opcional)</span>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-mono text-xs">ASAAS_API_SANDBOX_KEY</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">$aact_sandbox_...</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">Chave de sandbox para testes</span>
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+                
+                <div className="mt-4 p-3 bg-amber-50/80 border border-amber-200 rounded-md">
+                  <h4 className="text-amber-800 font-medium">⚠️ Importante: Formato das Chaves</h4>
+                  <p className="text-sm text-amber-700 mt-1">
+                    As chaves Asaas devem sempre começar com <code className="bg-amber-100 px-1">$aact_</code> para produção 
+                    e <code className="bg-amber-100 px-1">$aact_sandbox_</code> para sandbox. 
+                    Não inclua espaços, aspas ou caracteres invisíveis nas chaves.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-4 bg-primary/5 rounded-md">
+                <h3 className="font-medium flex items-center"><Database className="h-5 w-5 mr-2 text-emerald-600" /> Variáveis Supabase</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Configuração das variáveis de ambiente para o Supabase nas funções Netlify:
+                </p>
+                <Table className="mt-4">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nome da Variável</TableHead>
+                      <TableHead>Valor</TableHead>
+                      <TableHead>Observação</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell className="font-mono text-xs">SUPABASE_URL</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">https://onysoawoiffinwewtsex.supabase.co</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">URL do projeto Supabase</span>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-mono text-xs">SUPABASE_SERVICE_ROLE_KEY</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">eyJhbG...</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">Chave de serviço (service role) do Supabase - <strong>Não</strong> use a chave anon/pública</span>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-mono text-xs">SUPABASE_ANON_KEY</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">eyJhbG...</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">Chave anônima (pública) do Supabase</span>
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+                
+                <div className="mt-4 p-3 bg-emerald-50/80 border border-emerald-200 rounded-md">
+                  <h4 className="text-emerald-800 font-medium">✓ Importante: Segurança das Chaves</h4>
+                  <p className="text-sm text-emerald-700 mt-1">
+                    A <code className="bg-emerald-100 px-1">SUPABASE_SERVICE_ROLE_KEY</code> possui permissões elevadas e <strong>nunca</strong> deve ser 
+                    exposta no frontend. Use-a apenas nas funções Netlify.
+                  </p>
+                </div>
+              </div>
+
+              <Card className="border border-blue-100">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg flex items-center">
+                    <Globe className="h-5 w-5 mr-2 text-blue-600" />
+                    Verificação de Configuração
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm">
+                    Para garantir que suas funções Netlify estão configuradas corretamente, você pode acessar:
+                  </p>
+                  <div className="mt-3 flex flex-col space-y-2">
+                    <div className="p-2 bg-blue-50 rounded-md">
+                      <p className="text-xs font-mono">/api/check-asaas-keys?sandbox=true</p>
+                      <p className="text-xs text-blue-700">Verifica configuração das chaves sandbox</p>
+                    </div>
+                    <div className="p-2 bg-blue-50 rounded-md">
+                      <p className="text-xs font-mono">/api/check-asaas-keys?sandbox=false</p>
+                      <p className="text-xs text-blue-700">Verifica configuração das chaves de produção</p>
+                    </div>
+                    <div className="p-2 bg-blue-50 rounded-md">
+                      <p className="text-xs font-mono">/api/asaas-diagnostic</p>
+                      <p className="text-xs text-blue-700">Diagnóstico completo da integração Asaas</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="p-4 bg-green-50/50 border border-green-100 rounded-md">
+                <h3 className="font-medium text-green-800">✅ Configuração Recomendada</h3>
+                <p className="text-sm text-green-700 mt-1">
+                  Para o funcionamento ideal do sistema, recomendamos:
+                </p>
+                <ul className="list-disc list-inside text-sm mt-2 space-y-1 text-green-700">
+                  <li>Definir todas as variáveis acima no painel do Netlify</li>
+                  <li>Utilizar no mínimo duas chaves Asaas para failover em produção</li>
+                  <li>Configurar <code className="bg-green-100 px-1">USE_ASAAS_PRODUCTION=false</code> para testes iniciais</li>
+                  <li>Configurar <code className="bg-green-100 px-1">USE_ASAAS_PRODUCTION=true</code> apenas após testes completos</li>
+                  <li>Verificar o formato correto das chaves de API antes de salvar</li>
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Configurações de Build</CardTitle>
+              <CardDescription>
+                Configurações importantes do netlify.toml do projeto
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="p-4 bg-primary/5 rounded-md">
+                  <h3 className="font-medium">Configuração de Build</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    O arquivo netlify.toml define as configurações de build:
+                  </p>
+                  <pre className="bg-black/90 text-white p-3 rounded-md text-xs mt-2 overflow-auto">
+{`[build]
+  command = "npm install --legacy-peer-deps && npm run build"
+  publish = "dist"
+  functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "18.17.0"
+  NPM_VERSION = "9.6.7"
+  SECRETS_SCAN_ENABLED = "false"`}
+                  </pre>
+                </div>
+
+                <div className="p-4 bg-primary/5 rounded-md">
+                  <h3 className="font-medium">Configuração das Funções</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Configuração específica para as funções Netlify:
+                  </p>
+                  <pre className="bg-black/90 text-white p-3 rounded-md text-xs mt-2 overflow-auto">
+{`[functions]
+  node_bundler = "esbuild"
+  included_files = ["netlify/functions/**"]
+  external_node_modules = ["encoding"]
+
+# Função específica com timeout estendido
+[functions.create-asaas-customer]
+  timeout = 60`}
+                  </pre>
+                </div>
+
+                <div className="p-4 bg-primary/5 rounded-md">
+                  <h3 className="font-medium">Redirecionamentos</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Redirecionamento para funções Netlify via /api:
+                  </p>
+                  <pre className="bg-black/90 text-white p-3 rounded-md text-xs mt-2 overflow-auto">
+{`[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+  force = true`}
+                  </pre>
+                </div>
               </div>
             </CardContent>
           </Card>
