@@ -1,3 +1,4 @@
+
 import { Handler, HandlerEvent } from '@netlify/functions';
 import { supabase } from './asaas/supabase-client';
 import { AsaasCustomerRequest } from './asaas/types';
@@ -18,8 +19,8 @@ const corsHeaders = {
 const handler: Handler = async (event: HandlerEvent) => {
   console.log('[create-asaas-customer] -------- Iniciando requisição --------');
   console.log(`[create-asaas-customer] Método: ${event.httpMethod}`);
-  console.log(`[create-asaas-customer] Ambiente: USE_ASAAS_PRODUCTION=${process.env.USE_ASAAS_PRODUCTION}`);
-  console.log(`[create-asaas-customer] Valor bruto da variável de ambiente: "${process.env.USE_ASAAS_PRODUCTION}"`);
+  console.log('[create-asaas-customer] MODO FORÇADO: PRODUÇÃO - Ignorando variável USE_ASAAS_PRODUCTION');
+  console.log(`[create-asaas-customer] Valor IGNORADO da variável de ambiente: "${process.env.USE_ASAAS_PRODUCTION}"`);
   console.log('[create-asaas-customer] Headers recebidos:', JSON.stringify(event.headers));
 
   if (event.httpMethod === 'OPTIONS') {
@@ -58,11 +59,10 @@ const handler: Handler = async (event: HandlerEvent) => {
       };
     }
 
-    const useProductionEnvRaw = process.env.USE_ASAAS_PRODUCTION;
-    const useProduction = useProductionEnvRaw === 'true';
-    const isSandbox = !useProduction;
-
-    console.log(`[create-asaas-customer] Modo de operação: ${useProduction ? 'PRODUÇÃO' : 'SANDBOX'}`);
+    // FORÇAR MODO PRODUÇÃO - ignorar variável de ambiente
+    const isSandbox = false;
+    console.log(`[create-asaas-customer] Modo de operação FORÇADO: PRODUÇÃO`);
+    
     const apiBaseUrl = getAsaasApiBaseUrl(isSandbox);
     console.log(`[create-asaas-customer] API Base URL: ${apiBaseUrl}`);
 
@@ -70,12 +70,14 @@ const handler: Handler = async (event: HandlerEvent) => {
 
     // LOGS DE DEBUG PARA VERIFICAR FORMATO DA CHAVE
     console.log("[DEBUG] Tipo:", typeof apiKey);
-    console.log("[DEBUG] Tamanho:", apiKey.length);
-    console.log("[DEBUG] Início:", apiKey.slice(0, 10));
-    console.log("[DEBUG] Fim:", apiKey.slice(-6));
-    console.log("[DEBUG] Caracteres invisíveis?", /[\u200B\u200C\u200D\uFEFF]/.test(apiKey));
-    console.log("[DEBUG] Tem quebra de linha?", apiKey.includes('\n') || apiKey.includes('\r'));
-    console.log("[DEBUG] Começa com $?", apiKey.startsWith('$'));
+    console.log("[DEBUG] Tamanho:", apiKey ? apiKey.length : 'CHAVE NÃO ENCONTRADA');
+    if (apiKey) {
+      console.log("[DEBUG] Início:", apiKey.slice(0, 10));
+      console.log("[DEBUG] Fim:", apiKey.slice(-6));
+      console.log("[DEBUG] Caracteres invisíveis?", /[\u200B\u200C\u200D\uFEFF]/.test(apiKey));
+      console.log("[DEBUG] Tem quebra de linha?", apiKey.includes('\n') || apiKey.includes('\r'));
+      console.log("[DEBUG] Começa com $?", apiKey.startsWith('$'));
+    }
 
     if (!apiKey) {
       console.error(`[create-asaas-customer] ERRO: Nenhuma chave API configurada`);
@@ -85,8 +87,16 @@ const handler: Handler = async (event: HandlerEvent) => {
         body: JSON.stringify({ error: 'API key not configured' }),
       };
     }
+    
+    // Sanitizar a chave: remover espaços, quebras de linha e caracteres invisíveis
+    const sanitizedKey = apiKey.trim().replace(/[\n\r\t\u200B\u200C\u200D\uFEFF]/g, '');
+    console.log("[DEBUG] Chave sanitizada, tamanho:", sanitizedKey.length);
+    
+    if (sanitizedKey !== apiKey) {
+      console.warn("[DEBUG] Chave foi sanitizada - havia caracteres problemáticos!");
+    }
 
-    const keyAnalysis = analyzeApiKey(apiKey);
+    const keyAnalysis = analyzeApiKey(sanitizedKey);
     console.log('[create-asaas-customer] Análise da chave API:', JSON.stringify({
       valid: keyAnalysis.valid,
       hasPrefixDollar: keyAnalysis.hasPrefixDollar,
@@ -114,7 +124,7 @@ const handler: Handler = async (event: HandlerEvent) => {
       };
     }
 
-    const apiValidationResult = await apiKeyValidator.validateKey(apiKey, apiBaseUrl);
+    const apiValidationResult = await apiKeyValidator.validateKey(sanitizedKey, apiBaseUrl);
     if (!apiValidationResult.isValid) {
       console.error('[create-asaas-customer] ERRO: A chave API não passou no teste de validação!');
       return {
@@ -128,7 +138,7 @@ const handler: Handler = async (event: HandlerEvent) => {
     }
 
     console.log('[create-asaas-customer] Chave API válida, prosseguindo com pagamento...');
-    const result = await processPaymentFlow(requestData, apiKey, supabase, apiBaseUrl);
+    const result = await processPaymentFlow(requestData, sanitizedKey, supabase, apiBaseUrl);
 
     return {
       statusCode: 200,
