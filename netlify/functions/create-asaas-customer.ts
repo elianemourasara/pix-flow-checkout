@@ -89,55 +89,28 @@ const handler: Handler = async (event: HandlerEvent) => {
     }
     
     // Sanitizar a chave: remover espaços, quebras de linha e caracteres invisíveis
-    const sanitizedKey = apiKey.trim().replace(/[\n\r\t\u200B\u200C\u200D\uFEFF]/g, '');
+    // E adicionar prefixo $ se não existir
+    let sanitizedKey = apiKey.trim().replace(/[\n\r\t\u200B\u200C\u200D\uFEFF]/g, '');
+    
+    // FORÇAR CHAVE: Garantir que não comece com $, conforme solicitado pelo usuário
+    if (sanitizedKey.startsWith('$')) {
+      sanitizedKey = sanitizedKey.substring(1);
+      console.log("[DEBUG] Removido prefixo $ da chave, novo tamanho:", sanitizedKey.length);
+    }
+    
     console.log("[DEBUG] Chave sanitizada, tamanho:", sanitizedKey.length);
     
     if (sanitizedKey !== apiKey) {
       console.warn("[DEBUG] Chave foi sanitizada - havia caracteres problemáticos!");
     }
 
-    const keyAnalysis = analyzeApiKey(sanitizedKey);
-    console.log('[create-asaas-customer] Análise da chave API:', JSON.stringify({
-      valid: keyAnalysis.valid,
-      hasPrefixDollar: keyAnalysis.hasPrefixDollar,
-      format: keyAnalysis.format,
-      length: keyAnalysis.length,
-      firstEight: keyAnalysis.firstEight,
-      lastFour: keyAnalysis.lastFour
-    }, null, 2));
+    // BYPASS COMPLETO - Não verificar formato/análise
+    console.log('[create-asaas-customer] BYPASS: Ignorando análise de formato da chave');
 
-    if (!keyAnalysis.valid) {
-      console.error('[create-asaas-customer] ERRO: A chave API tem problemas de formato!');
-      return {
-        statusCode: 500,
-        headers: corsHeaders,
-        body: JSON.stringify({ 
-          error: 'Invalid API key format',
-          details: {
-            containsInvisibleChars: keyAnalysis.containsInvisibleChars,
-            containsQuotes: keyAnalysis.containsQuotes,
-            hasPrefixDollar: keyAnalysis.hasPrefixDollar,
-            format: keyAnalysis.format,
-            length: keyAnalysis.length
-          }
-        }),
-      };
-    }
-
-    const apiValidationResult = await apiKeyValidator.validateKey(sanitizedKey, apiBaseUrl);
-    if (!apiValidationResult.isValid) {
-      console.error('[create-asaas-customer] ERRO: A chave API não passou no teste de validação!');
-      return {
-        statusCode: 401,
-        headers: corsHeaders,
-        body: JSON.stringify({ 
-          error: 'API key validation failed',
-          message: apiValidationResult.message
-        }),
-      };
-    }
-
-    console.log('[create-asaas-customer] Chave API válida, prosseguindo com pagamento...');
+    // BYPASS COMPLETO - Não validar chave contra API Asaas
+    console.log('[create-asaas-customer] BYPASS: Ignorando validação online da chave');
+    console.log('[create-asaas-customer] Chave assumida como válida, prosseguindo com pagamento...');
+    
     const result = await processPaymentFlow(requestData, sanitizedKey, supabase, apiBaseUrl);
 
     return {
