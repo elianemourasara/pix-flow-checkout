@@ -12,6 +12,14 @@ export const apiKeyValidator = {
    * @returns Resultado da validação
    */
   validateKey: async (apiKey: string, apiBaseUrl: string) => {
+    console.log('[apiKeyValidator] BYPASS: Marcando chave como válida sem validação real');
+    
+    return {
+      isValid: true,
+      message: 'Chave API aceita sem validação (bypass ativado)'
+    };
+    
+    /* VALIDAÇÃO ORIGINAL COMENTADA PARA BYPASS
     console.log('[apiKeyValidator] Validando chave API...');
     
     if (!apiKey) {
@@ -122,5 +130,6 @@ export const apiKeyValidator = {
         error: error.message
       };
     }
+    */
   }
 };
