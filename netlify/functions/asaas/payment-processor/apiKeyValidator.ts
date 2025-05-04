@@ -35,7 +35,7 @@ export async function validateApiKey(apiKey: string, apiUrl: string): Promise<bo
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`,
         'User-Agent': 'Mozilla/5.0 Lovable/Netlify',
-        'Accept': '*/*',
+        'Accept': 'application/json, text/plain',
         'Cache-Control': 'no-cache'
       },
       agent,

@@ -60,7 +60,7 @@ export const apiKeyValidator = {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${sanitizedKey}`,
           'User-Agent': 'Lovable/Asaas Validator',
-          'Accept': '*/*',
+          'Accept': 'application/json, text/plain',
           'Cache-Control': 'no-cache'
         },
         agent,
@@ -88,7 +88,7 @@ export const apiKeyValidator = {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${alternativeKey}`,
               'User-Agent': 'Lovable/Asaas Validator',
-              'Accept': '*/*',
+              'Accept': 'application/json, text/plain',
               'Cache-Control': 'no-cache'
             },
             agent,
