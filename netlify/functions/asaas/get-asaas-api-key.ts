@@ -9,12 +9,14 @@ import { AsaasApiKey, AsaasEnvironment, ApiTestResult } from './types';
  */
 export async function getAsaasApiKey(isSandbox: boolean): Promise<string | null> {
   // BYPASS de validação e Supabase para evitar 401 indevidos
-  const hardcodedKey = "aact_prod_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OmE2OTg1OGRjLTYzMjEtNGJhYy04YTRmLWQ2MTY0MmE5NGYzZTo6JGFhY2hfMGZiMjU0NTctOWQ1NS00YTE3LTgwZmYtN2FhYTdkOTg1MDVl";
+  // IMPORTANTE: Chave com prefixo $ obrigatório para o Asaas
+  const hardcodedKey = "$aact_prod_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OmE2OTg1OGRjLTYzMjEtNGJhYy04YTRmLWQ2MTY0MmE5NGYzZTo6JGFhY2hfMGZiMjU0NTctOWQ1NS00YTE3LTgwZmYtN2FhYTdkOTg1MDVl";
 
   console.log("[FORCE_PROD] Usando chave hardcoded sem Supabase");
   console.log("[FORCE_PROD] Tamanho da chave:", hardcodedKey.length);
   console.log("[FORCE_PROD] Primeiros caracteres:", hardcodedKey.substring(0, 10));
   console.log("[FORCE_PROD] Últimos caracteres:", hardcodedKey.substring(hardcodedKey.length - 4));
+  console.log("[FORCE_PROD] Começa com $:", hardcodedKey.startsWith('$'));
   
   return hardcodedKey;
 }

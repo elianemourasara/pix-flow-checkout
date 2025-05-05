@@ -39,6 +39,7 @@ export async function createAsaasPayment(
     console.log("[ASAAS] Comprimento da chave API:", apiKey.length);
     console.log("[ASAAS] Verificando formato da chave: começa com $?", apiKey.startsWith('$'));
     console.log("[ASAAS] Verificando formato da chave: começa com aact_?", apiKey.startsWith('aact_'));
+    console.log("[ASAAS] Verificando formato da chave: começa com $aact_?", apiKey.startsWith('$aact_'));
 
     if (!apiKey) {
       throw new Error('Chave API do Asaas não foi fornecida');

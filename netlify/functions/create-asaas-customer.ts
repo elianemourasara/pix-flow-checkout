@@ -94,15 +94,17 @@ const handler: Handler = async (event: HandlerEvent) => {
     }
     
     // Sanitizar a chave: remover espaços, quebras de linha e caracteres invisíveis
+    // IMPORTANTE: NÃO remover o caractere $ inicial
     let sanitizedKey = apiKey.trim().replace(/[\n\r\t\u200B\u200C\u200D\uFEFF]/g, '');
     
-    // FORÇAR CHAVE: Garantir que não comece com $, conforme solicitado pelo usuário
-    if (sanitizedKey.startsWith('$')) {
-      sanitizedKey = sanitizedKey.substring(1);
-      console.log("[DEBUG] Removido prefixo $ da chave, novo tamanho:", sanitizedKey.length);
+    // DEBUG: Verificar se a chave tem o formato correto para o Asaas ($aact_...)
+    if (!sanitizedKey.startsWith('$')) {
+      console.error("[DEBUG] ERRO CRÍTICO: A chave não começa com $, formato inválido para o Asaas!");
     }
     
     console.log("[DEBUG] Chave sanitizada, tamanho:", sanitizedKey.length);
+    console.log("[DEBUG] Começa com $:", sanitizedKey.startsWith('$'));
+    console.log("[DEBUG] Começa com $aact_:", sanitizedKey.startsWith('$aact_'));
     
     if (sanitizedKey !== apiKey) {
       console.warn("[DEBUG] Chave foi sanitizada - havia caracteres problemáticos!");
@@ -113,9 +115,24 @@ const handler: Handler = async (event: HandlerEvent) => {
       console.log("[ASAAS-DIAGNÓSTICO] - Tamanho sanitizado:", sanitizedKey.length);
     }
 
-    // BYPASS COMPLETO - Não verificar formato/análise
-    console.log('[create-asaas-customer] BYPASS: Ignorando análise de formato da chave');
-    console.log('[create-asaas-customer] Chave assumida como válida, prosseguindo com pagamento...');
+    // Verificação básica de formato da chave Asaas
+    if (!sanitizedKey.startsWith('$')) {
+      console.error('[create-asaas-customer] ERRO CRÍTICO: Chave API não segue o formato padrão $aact_*');
+      return {
+        statusCode: 500,
+        headers: corsHeaders,
+        body: JSON.stringify({ 
+          error: 'Invalid API key format', 
+          details: {
+            containsInvisibleChars: /[\u200B\u200C\u200D\uFEFF]/.test(apiKey),
+            containsQuotes: /['"]/.test(apiKey),
+            hasPrefixDollar: apiKey.startsWith('$'),
+            format: apiKey.startsWith('$') ? 'padrão correto' : 'sem $ inicial',
+            length: apiKey.length
+          }
+        }),
+      };
+    }
     
     // Teste de conexão básica com a API antes de prosseguir
     try {
