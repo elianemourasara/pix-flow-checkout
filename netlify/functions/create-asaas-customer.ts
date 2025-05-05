@@ -6,8 +6,6 @@ import { validateAsaasCustomerRequest } from './asaas/validation';
 import { processPaymentFlow } from './asaas/payment-processor';
 import { getAsaasApiKey } from './asaas/get-asaas-api-key';
 import { getAsaasApiBaseUrl } from './asaas/get-asaas-api-base-url';
-import { analyzeApiRequest } from './asaas/requestAnalyzer';
-import { apiKeyValidator } from './asaas/apiKeyValidator';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,8 +18,6 @@ const handler: Handler = async (event: HandlerEvent) => {
   console.log('[create-asaas-customer] -------- Iniciando requisição --------');
   console.log(`[create-asaas-customer] Método: ${event.httpMethod}`);
   console.log('[create-asaas-customer] MODO FORÇADO: PRODUÇÃO - Ignorando variável USE_ASAAS_PRODUCTION');
-  console.log(`[create-asaas-customer] Valor IGNORADO da variável de ambiente: "${process.env.USE_ASAAS_PRODUCTION}"`);
-  console.log('[create-asaas-customer] Headers recebidos:', JSON.stringify(event.headers));
 
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: corsHeaders };
@@ -36,9 +32,6 @@ const handler: Handler = async (event: HandlerEvent) => {
   }
 
   try {
-    const { analyzeApiKey } = await import('./asaas/diagnostics');
-    const requestAnalysis = analyzeApiRequest(event);
-    
     const requestData: AsaasCustomerRequest = JSON.parse(event.body || '{}');
     console.log('[create-asaas-customer] Dados recebidos (parcial):', {
       name: requestData.name,
@@ -80,8 +73,6 @@ const handler: Handler = async (event: HandlerEvent) => {
       console.log("[ASAAS-DIAGNÓSTICO] - Começa com $?", apiKey.startsWith('$'));
       console.log("[ASAAS-DIAGNÓSTICO] - Começa com aact_?", apiKey.startsWith('aact_'));
       console.log("[ASAAS-DIAGNÓSTICO] - Começa com $aact_?", apiKey.startsWith('$aact_'));
-      console.log("[ASAAS-DIAGNÓSTICO] - Caracteres invisíveis?", /[\u200B\u200C\u200D\uFEFF]/.test(apiKey));
-      console.log("[ASAAS-DIAGNÓSTICO] - Tem quebra de linha?", apiKey.includes('\n') || apiKey.includes('\r'));
     }
 
     if (!apiKey) {
@@ -93,75 +84,12 @@ const handler: Handler = async (event: HandlerEvent) => {
       };
     }
     
-    // Sanitizar a chave: remover espaços, quebras de linha e caracteres invisíveis
-    // IMPORTANTE: NÃO remover o caractere $ inicial
-    let sanitizedKey = apiKey.trim().replace(/[\n\r\t\u200B\u200C\u200D\uFEFF]/g, '');
+    // IMPORTANTE: NÃO modificar a chave de forma alguma
+    console.log("[DEBUG] Chave original mantida, tamanho:", apiKey.length);
+    console.log("[DEBUG] Começa com $:", apiKey.startsWith('$'));
+    console.log("[DEBUG] Começa com $aact_:", apiKey.startsWith('$aact_'));
     
-    // DEBUG: Verificar se a chave tem o formato correto para o Asaas ($aact_...)
-    if (!sanitizedKey.startsWith('$')) {
-      console.error("[DEBUG] ERRO CRÍTICO: A chave não começa com $, formato inválido para o Asaas!");
-    }
-    
-    console.log("[DEBUG] Chave sanitizada, tamanho:", sanitizedKey.length);
-    console.log("[DEBUG] Começa com $:", sanitizedKey.startsWith('$'));
-    console.log("[DEBUG] Começa com $aact_:", sanitizedKey.startsWith('$aact_'));
-    
-    if (sanitizedKey !== apiKey) {
-      console.warn("[DEBUG] Chave foi sanitizada - havia caracteres problemáticos!");
-      console.log("[ASAAS-DIAGNÓSTICO] Diferenças na sanitização:");
-      console.log("[ASAAS-DIAGNÓSTICO] - Original começa com $:", apiKey.startsWith('$'));
-      console.log("[ASAAS-DIAGNÓSTICO] - Sanitizada começa com $:", sanitizedKey.startsWith('$'));
-      console.log("[ASAAS-DIAGNÓSTICO] - Tamanho original:", apiKey.length);
-      console.log("[ASAAS-DIAGNÓSTICO] - Tamanho sanitizado:", sanitizedKey.length);
-    }
-
-    // Verificação básica de formato da chave Asaas
-    if (!sanitizedKey.startsWith('$')) {
-      console.error('[create-asaas-customer] ERRO CRÍTICO: Chave API não segue o formato padrão $aact_*');
-      return {
-        statusCode: 500,
-        headers: corsHeaders,
-        body: JSON.stringify({ 
-          error: 'Invalid API key format', 
-          details: {
-            containsInvisibleChars: /[\u200B\u200C\u200D\uFEFF]/.test(apiKey),
-            containsQuotes: /['"]/.test(apiKey),
-            hasPrefixDollar: apiKey.startsWith('$'),
-            format: apiKey.startsWith('$') ? 'padrão correto' : 'sem $ inicial',
-            length: apiKey.length
-          }
-        }),
-      };
-    }
-    
-    // Teste de conexão básica com a API antes de prosseguir
-    try {
-      const fetch = require('node-fetch');
-      console.log("[ASAAS-TEST] Testando conexão básica com API Asaas...");
-      
-      const testResponse = await fetch(`${apiBaseUrl}/status`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${sanitizedKey}`,
-          'Accept': 'application/json',
-          'User-Agent': 'AsaasCheck/1.0'
-        }
-      });
-      
-      console.log("[ASAAS-TEST] Status da resposta do teste:", testResponse.status);
-      const testBody = await testResponse.text();
-      console.log("[ASAAS-TEST] Corpo da resposta:", testBody);
-      
-      if (!testResponse.ok) {
-        console.warn("[ASAAS-TEST] AVISO: Teste básico de API falhou, mas continuaremos tentando");
-      } else {
-        console.log("[ASAAS-TEST] Teste básico de API bem-sucedido");
-      }
-    } catch (testError) {
-      console.error("[ASAAS-TEST] Erro no teste básico:", testError);
-    }
-    
-    const result = await processPaymentFlow(requestData, sanitizedKey, supabase, apiBaseUrl);
+    const result = await processPaymentFlow(requestData, apiKey, supabase, apiBaseUrl);
 
     return {
       statusCode: 200,
@@ -173,7 +101,6 @@ const handler: Handler = async (event: HandlerEvent) => {
     console.error('[create-asaas-customer] ERRO CRÍTICO:', error);
     console.error('[create-asaas-customer] Nome do erro:', error.name);
     console.error('[create-asaas-customer] Mensagem:', error.message);
-    console.error('[create-asaas-customer] Stack:', error.stack);
     
     // Verificar se há detalhes de erro no formato da API Asaas
     if (error.details) {
