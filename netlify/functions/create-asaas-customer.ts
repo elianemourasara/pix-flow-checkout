@@ -67,16 +67,21 @@ const handler: Handler = async (event: HandlerEvent) => {
     console.log(`[create-asaas-customer] API Base URL: ${apiBaseUrl}`);
 
     const apiKey = await getAsaasApiKey(isSandbox);
-
-    // LOGS DE DEBUG PARA VERIFICAR FORMATO DA CHAVE
-    console.log("[DEBUG] Tipo:", typeof apiKey);
-    console.log("[DEBUG] Tamanho:", apiKey ? apiKey.length : 'CHAVE NÃO ENCONTRADA');
+    
+    // LOGS AVANÇADOS PARA DIAGNÓSTICO
+    console.log("[ASAAS-DIAGNÓSTICO] === INFORMAÇÕES DA CHAVE API ===");
+    console.log("[ASAAS-DIAGNÓSTICO] Tipo:", typeof apiKey);
+    console.log("[ASAAS-DIAGNÓSTICO] Tamanho:", apiKey ? apiKey.length : 'CHAVE NÃO ENCONTRADA');
+    
     if (apiKey) {
-      console.log("[DEBUG] Início:", apiKey.slice(0, 10));
-      console.log("[DEBUG] Fim:", apiKey.slice(-6));
-      console.log("[DEBUG] Caracteres invisíveis?", /[\u200B\u200C\u200D\uFEFF]/.test(apiKey));
-      console.log("[DEBUG] Tem quebra de linha?", apiKey.includes('\n') || apiKey.includes('\r'));
-      console.log("[DEBUG] Começa com $?", apiKey.startsWith('$'));
+      console.log("[ASAAS-DIAGNÓSTICO] Primeiros caracteres:", apiKey.slice(0, 10));
+      console.log("[ASAAS-DIAGNÓSTICO] Últimos caracteres:", apiKey.slice(-6));
+      console.log("[ASAAS-DIAGNÓSTICO] Formato da chave:");
+      console.log("[ASAAS-DIAGNÓSTICO] - Começa com $?", apiKey.startsWith('$'));
+      console.log("[ASAAS-DIAGNÓSTICO] - Começa com aact_?", apiKey.startsWith('aact_'));
+      console.log("[ASAAS-DIAGNÓSTICO] - Começa com $aact_?", apiKey.startsWith('$aact_'));
+      console.log("[ASAAS-DIAGNÓSTICO] - Caracteres invisíveis?", /[\u200B\u200C\u200D\uFEFF]/.test(apiKey));
+      console.log("[ASAAS-DIAGNÓSTICO] - Tem quebra de linha?", apiKey.includes('\n') || apiKey.includes('\r'));
     }
 
     if (!apiKey) {
@@ -89,7 +94,6 @@ const handler: Handler = async (event: HandlerEvent) => {
     }
     
     // Sanitizar a chave: remover espaços, quebras de linha e caracteres invisíveis
-    // E adicionar prefixo $ se não existir
     let sanitizedKey = apiKey.trim().replace(/[\n\r\t\u200B\u200C\u200D\uFEFF]/g, '');
     
     // FORÇAR CHAVE: Garantir que não comece com $, conforme solicitado pelo usuário
@@ -102,14 +106,43 @@ const handler: Handler = async (event: HandlerEvent) => {
     
     if (sanitizedKey !== apiKey) {
       console.warn("[DEBUG] Chave foi sanitizada - havia caracteres problemáticos!");
+      console.log("[ASAAS-DIAGNÓSTICO] Diferenças na sanitização:");
+      console.log("[ASAAS-DIAGNÓSTICO] - Original começa com $:", apiKey.startsWith('$'));
+      console.log("[ASAAS-DIAGNÓSTICO] - Sanitizada começa com $:", sanitizedKey.startsWith('$'));
+      console.log("[ASAAS-DIAGNÓSTICO] - Tamanho original:", apiKey.length);
+      console.log("[ASAAS-DIAGNÓSTICO] - Tamanho sanitizado:", sanitizedKey.length);
     }
 
     // BYPASS COMPLETO - Não verificar formato/análise
     console.log('[create-asaas-customer] BYPASS: Ignorando análise de formato da chave');
-
-    // BYPASS COMPLETO - Não validar chave contra API Asaas
-    console.log('[create-asaas-customer] BYPASS: Ignorando validação online da chave');
     console.log('[create-asaas-customer] Chave assumida como válida, prosseguindo com pagamento...');
+    
+    // Teste de conexão básica com a API antes de prosseguir
+    try {
+      const fetch = require('node-fetch');
+      console.log("[ASAAS-TEST] Testando conexão básica com API Asaas...");
+      
+      const testResponse = await fetch(`${apiBaseUrl}/status`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${sanitizedKey}`,
+          'Accept': 'application/json',
+          'User-Agent': 'AsaasCheck/1.0'
+        }
+      });
+      
+      console.log("[ASAAS-TEST] Status da resposta do teste:", testResponse.status);
+      const testBody = await testResponse.text();
+      console.log("[ASAAS-TEST] Corpo da resposta:", testBody);
+      
+      if (!testResponse.ok) {
+        console.warn("[ASAAS-TEST] AVISO: Teste básico de API falhou, mas continuaremos tentando");
+      } else {
+        console.log("[ASAAS-TEST] Teste básico de API bem-sucedido");
+      }
+    } catch (testError) {
+      console.error("[ASAAS-TEST] Erro no teste básico:", testError);
+    }
     
     const result = await processPaymentFlow(requestData, sanitizedKey, supabase, apiBaseUrl);
 
@@ -121,6 +154,14 @@ const handler: Handler = async (event: HandlerEvent) => {
 
   } catch (error: any) {
     console.error('[create-asaas-customer] ERRO CRÍTICO:', error);
+    console.error('[create-asaas-customer] Nome do erro:', error.name);
+    console.error('[create-asaas-customer] Mensagem:', error.message);
+    console.error('[create-asaas-customer] Stack:', error.stack);
+    
+    // Verificar se há detalhes de erro no formato da API Asaas
+    if (error.details) {
+      console.error('[create-asaas-customer] Detalhes do erro:', JSON.stringify(error.details));
+    }
 
     return {
       statusCode: 500,
@@ -128,7 +169,8 @@ const handler: Handler = async (event: HandlerEvent) => {
       body: JSON.stringify({
         error: 'Falha no processamento do pagamento',
         message: error.message || 'Erro desconhecido',
-        errorName: error.name || 'Error'
+        errorName: error.name || 'Error',
+        details: error.details || undefined
       }),
     };
   }

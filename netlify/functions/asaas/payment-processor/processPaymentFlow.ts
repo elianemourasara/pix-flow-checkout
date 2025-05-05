@@ -21,6 +21,15 @@ export async function processPaymentFlow(
   console.log(`[processPaymentFlow] Últimos caracteres da chave API: ...${apiKey.substring(apiKey.length - 4)}`);
   console.log(`[processPaymentFlow] Comprimento da chave API: ${apiKey.length} caracteres`);
   
+  // Log detalhado da chave API (formato)
+  console.log(`[ASAAS] Análise da chave API:`);
+  console.log(`[ASAAS] - Comprimento total: ${apiKey.length} caracteres`);
+  console.log(`[ASAAS] - Começa com $: ${apiKey.startsWith('$')}`);
+  console.log(`[ASAAS] - Começa com aact_: ${apiKey.startsWith('aact_')}`);
+  console.log(`[ASAAS] - Começa com $aact_: ${apiKey.startsWith('$aact_')}`);
+  console.log(`[ASAAS] - Contém espaços: ${apiKey.includes(' ')}`);
+  console.log(`[ASAAS] - Contém quebras de linha: ${apiKey.includes('\n') || apiKey.includes('\r')}`);
+  
   // Verificar formato da chave
   if (!apiKey.startsWith('$aact_') && !apiKey.startsWith('aact_')) {
     console.warn(`[processPaymentFlow] AVISO: A chave API não tem o formato esperado (aact_ ou $aact_). Formato atual: ${apiKey.substring(0, 5)}...`);
@@ -97,6 +106,29 @@ export async function processPaymentFlow(
     });
     
     console.log(`[processPaymentFlow] Chamando API Asaas (${apiUrl}) para criar cliente...`);
+    
+    // Testando conexão com a API antes de prosseguir
+    try {
+      console.log('[ASAAS] Testando conexão com a API antes de prosseguir...');
+      const fetch = require('node-fetch');
+      const testResponse = await fetch(`${apiUrl}/status`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Accept': 'application/json'
+        }
+      });
+      
+      console.log(`[ASAAS] Teste de conexão - Status: ${testResponse.status}`);
+      const testBody = await testResponse.text();
+      console.log(`[ASAAS] Teste de conexão - Corpo: ${testBody}`);
+      
+      if (!testResponse.ok) {
+        console.error('[ASAAS] ALERTA: Teste de conexão falhou, mas tentaremos criar o cliente mesmo assim');
+      }
+    } catch (connError) {
+      console.error('[ASAAS] Erro ao testar conexão:', connError);
+    }
     
     try {
       // 1. Create customer in Asaas

@@ -8,20 +8,20 @@ export function prepareApiKey(apiKey: string): string {
   
   // Log the original key format for debugging
   console.log(`[prepareApiKey] Key starts with $: ${cleanKey.startsWith('$')}`);
+  console.log(`[prepareApiKey] Key starts with aact_: ${cleanKey.startsWith('aact_')}`);
+  console.log(`[prepareApiKey] Original key length: ${cleanKey.length}`);
   
-  // NOTE: We're now accepting keys with or without the $ prefix
-  // This is normally how we'd standardize, but current issue shows this is causing problems
-  // if (!cleanKey.startsWith('$') && cleanKey.startsWith('aact_')) {
-  //   cleanKey = '$' + cleanKey;
-  // }
+  // IMPORTANTE: Aceitamos qualquer formato de chave neste momento
+  // Uma vez que estamos em troubleshooting, não queremos limitar formatos
   
-  // Instead we'll ensure $ prefix is REMOVED if it exists since our test shows this works
+  // Se o usuário solicitou para remover o prefixo $, fazemos isso
   if (cleanKey.startsWith('$')) {
     console.log('[prepareApiKey] Removendo prefixo $ da chave para garantir compatibilidade');
     cleanKey = cleanKey.substring(1);
   }
   
   console.log(`[prepareApiKey] Final key format (first 5): ${cleanKey.substring(0, 5)}...`);
+  console.log(`[prepareApiKey] Final key length: ${cleanKey.length}`);
   return cleanKey;
 }
 
@@ -29,6 +29,7 @@ export function prepareApiKey(apiKey: string): string {
  * Analyze if a key appears to be valid 
  */
 export function isKeyValid(apiKey: string): boolean {
-  // Relaxed validation - just check it's not empty and has reasonable length
-  return !!apiKey && apiKey.length > 30;
+  // Em modo troubleshooting, aceitamos qualquer chave que não esteja vazia
+  console.log(`[isKeyValid] Checking key validity: length=${apiKey?.length || 0}`);
+  return !!apiKey && apiKey.length > 10;
 }
