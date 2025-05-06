@@ -2,17 +2,13 @@
 import React from 'react';
 import { Check } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
-import { BumpProduct, useOrderBump } from '@/hooks/useOrderBump';
+import { useOrderBump } from '@/hooks/useOrderBump';
+import { BumpProduct, OrderBumpProps } from './OrderBump/types';
 
-interface OrderBumpProps {
-  products: BumpProduct[];
-  onTotalChange?: (total: number) => void;
-}
-
-export const OrderBump: React.FC<OrderBumpProps> = ({ products, onTotalChange }) => {
-  const { toggleProduct, isSelected, total } = useOrderBump({ 
+export const OrderBump: React.FC<OrderBumpProps> = ({ products, onChange }) => {
+  const { toggleProduct, isSelected, selectedProducts, total } = useOrderBump({ 
     products, 
-    onTotalChange 
+    onChange 
   });
   
   if (!products || products.length === 0) {
