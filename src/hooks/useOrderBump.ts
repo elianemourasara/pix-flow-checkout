@@ -1,5 +1,5 @@
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 export interface BumpProduct {
   id: string;
@@ -11,50 +11,52 @@ export interface BumpProduct {
 
 interface UseOrderBumpProps {
   products: BumpProduct[];
+  onChange?: (selectedProducts: BumpProduct[], total: number) => void;
   onTotalChange?: (total: number) => void;
 }
 
-export const useOrderBump = ({ products, onTotalChange }: UseOrderBumpProps) => {
-  const [selectedProducts, setSelectedProducts] = useState<Record<string, boolean>>({});
+export const useOrderBump = ({ products, onChange, onTotalChange }: UseOrderBumpProps) => {
+  const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
   
   const toggleProduct = useCallback((productId: string) => {
-    setSelectedProducts(prev => {
-      const updated = {
-        ...prev,
-        [productId]: !prev[productId]
-      };
-      
-      // Calculate new total and call the callback
-      const newTotal = calculateTotal(products, updated);
-      if (onTotalChange) {
-        onTotalChange(newTotal);
-      }
-      
-      return updated;
-    });
-  }, [products, onTotalChange]);
-  
-  const calculateTotal = useCallback((products: BumpProduct[], selected: Record<string, boolean>) => {
-    return products.reduce((total, product) => {
-      return total + (selected[product.id] ? product.price : 0);
-    }, 0);
+    setSelectedIds(prev => ({
+      ...prev,
+      [productId]: !prev[productId]
+    }));
   }, []);
   
-  const total = calculateTotal(products, selectedProducts);
-  
   const isSelected = useCallback((productId: string) => {
-    return !!selectedProducts[productId];
-  }, [selectedProducts]);
+    return !!selectedIds[productId];
+  }, [selectedIds]);
   
-  const getSelectedProducts = useCallback(() => {
-    return products.filter(product => selectedProducts[product.id]);
-  }, [products, selectedProducts]);
+  const selectedProducts = useCallback(() => {
+    return products.filter(product => selectedIds[product.id]);
+  }, [products, selectedIds]);
+  
+  const total = useCallback(() => {
+    return products.reduce((sum, product) => {
+      return sum + (selectedIds[product.id] ? product.price : 0);
+    }, 0);
+  }, [products, selectedIds]);
+  
+  // Call onChange whenever selected products change
+  useEffect(() => {
+    const selected = selectedProducts();
+    const currentTotal = total();
+    
+    if (onChange) {
+      onChange(selected, currentTotal);
+    }
+    
+    if (onTotalChange) {
+      onTotalChange(currentTotal);
+    }
+  }, [selectedIds, onChange, onTotalChange, selectedProducts, total]);
   
   return {
-    selectedProducts,
+    selectedProducts: selectedProducts(),
     toggleProduct,
-    total,
     isSelected,
-    getSelectedProducts
+    total: total()
   };
 };

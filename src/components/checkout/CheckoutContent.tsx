@@ -1,3 +1,4 @@
+
 import React, { useRef, useState } from 'react';
 import { CheckoutCustomization, CustomerData, PaymentMethod, Product, AddressData } from '@/types/checkout';
 import { PersonalInfoSection } from './PersonalInfoSection';
@@ -7,8 +8,8 @@ import { OrderSummary } from './OrderSummary';
 import { AddressForm } from './address/AddressForm';
 import { useShippingMessage } from './address/useShippingMessage';
 import { RandomVisitorsMessage } from './RandomVisitorsMessage';
-import { OrderBump } from './OrderBump'; // Import OrderBump component
-import { BumpProduct } from '@/hooks/useOrderBump'; // Import BumpProduct type directly from the hook
+import { OrderBump } from './OrderBump'; 
+import { BumpProduct } from './OrderBump/types';
 
 interface CheckoutContentProps {
   product: Product;
@@ -70,7 +71,7 @@ export const CheckoutContent: React.FC<CheckoutContentProps> = ({
   };
   
   // Handle additional total from OrderBump
-  const handleAdditionalTotal = (total: number) => {
+  const handleAdditionalTotal = (selectedProducts: BumpProduct[], total: number) => {
     setAdditionalTotal(total);
   };
   
@@ -118,7 +119,7 @@ export const CheckoutContent: React.FC<CheckoutContentProps> = ({
       {/* Add OrderBump component */}
       <OrderBump 
         products={bumpProducts} 
-        onTotalChange={handleAdditionalTotal} 
+        onChange={handleAdditionalTotal} 
       />
       
       <PaymentMethodSection

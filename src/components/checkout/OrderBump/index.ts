@@ -1,3 +1,3 @@
 
 export { OrderBump } from './OrderBump';
-export type { BumpProduct } from '@/hooks/useOrderBump';
+export type { BumpProduct, OrderBumpProps } from './types';
