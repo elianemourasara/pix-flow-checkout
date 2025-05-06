@@ -63,6 +63,11 @@ export const useProductEdit = () => {
         // Processa order bumps (se existirem)
         const orderBumps: OrderBump[] = product.order_bumps || [];
 
+        // Fix TypeScript error: Ensure product.type is cast to the correct type
+        const productType = (product.type === 'digital' || product.type === 'physical') 
+          ? product.type 
+          : 'digital'; // Default to 'digital' if type is invalid
+
         // Map database data to the form
         form.reset({
           name: product.name,
@@ -71,7 +76,7 @@ export const useProductEdit = () => {
           price: product.price,
           image_url: product.image_url || '',
           banner_image_url: product.banner_image_url || '',
-          type: product.type || 'digital',
+          type: productType, // Use the validated type
           use_global_colors: product.use_global_colors === false ? false : true, // If null or undefined, assume true
           button_color: product.button_color || '#28A745',
           heading_color: product.heading_color || '#000000',
