@@ -1,5 +1,5 @@
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { CheckoutCustomization, CustomerData, PaymentMethod, Product, AddressData } from '@/types/checkout';
 import { PersonalInfoSection } from './PersonalInfoSection';
 import { TestimonialSection } from './TestimonialSection';
@@ -8,7 +8,7 @@ import { OrderSummary } from './OrderSummary';
 import { AddressForm } from './address/AddressForm';
 import { useShippingMessage } from './address/useShippingMessage';
 import { RandomVisitorsMessage } from './RandomVisitorsMessage';
-import { OrderBump } from './OrderBump/OrderBump'; 
+import { OrderBump } from './OrderBump'; 
 import { BumpProduct } from './OrderBump/types';
 
 interface CheckoutContentProps {
@@ -39,23 +39,28 @@ export const CheckoutContent: React.FC<CheckoutContentProps> = ({
   const [showFreeShipping, setShowFreeShipping] = useState(false);
   const [additionalTotal, setAdditionalTotal] = useState(0);
   
-  // Exemplo de produtos para OrderBump
-  const bumpProducts: BumpProduct[] = [
-    {
-      id: 'bump1',
-      name: 'Garantia Estendida',
-      description: 'Estenda sua garantia por mais 12 meses',
-      price: product.price * 0.15, // 15% do valor do produto principal
-      imageUrl: 'https://placehold.co/100x60/6E59A5/FFFFFF.png?text=Garantia'
-    },
-    {
-      id: 'bump2',
-      name: 'Entrega Expressa',
-      description: 'Receba em até 3 dias úteis',
-      price: 19.90,
-      imageUrl: 'https://placehold.co/100x60/6E59A5/FFFFFF.png?text=Express'
+  // Mapear order_bumps do produto para o formato BumpProduct
+  const [bumpProducts, setBumpProducts] = useState<BumpProduct[]>([]);
+  
+  // Carrega os order bumps do produto
+  useEffect(() => {
+    if (product && product.order_bumps && product.order_bumps.length > 0) {
+      // Mapear order bumps para o formato esperado pelo componente OrderBump
+      const activeBumps = product.order_bumps
+        .filter(bump => bump.active !== false)
+        .map(bump => ({
+          id: bump.id,
+          name: bump.name,
+          description: bump.description,
+          price: bump.price,
+          imageUrl: bump.imageUrl || undefined
+        }));
+      
+      setBumpProducts(activeBumps);
+    } else {
+      setBumpProducts([]);
     }
-  ];
+  }, [product]);
   
   // Determine if product is physical based on the product type
   const isPhysicalProduct = product.type === 'physical';
@@ -116,11 +121,13 @@ export const CheckoutContent: React.FC<CheckoutContentProps> = ({
         />
       )}
       
-      {/* Add OrderBump component */}
-      <OrderBump 
-        products={bumpProducts} 
-        onChange={handleAdditionalTotal} 
-      />
+      {/* Add OrderBump component - só exibe se houver products */}
+      {bumpProducts.length > 0 && (
+        <OrderBump 
+          products={bumpProducts} 
+          onChange={handleAdditionalTotal} 
+        />
+      )}
       
       <PaymentMethodSection
         id="payment-section"

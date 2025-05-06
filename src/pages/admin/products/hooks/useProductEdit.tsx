@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { productSchema, ProductFormValues } from '../ProductSchema';
 import { toast } from '@/hooks/use-toast';
 import { getProductBySlug, updateProduct } from '@/services/productService';
+import { OrderBump } from '@/types/checkout';
 
 export const useProductEdit = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -32,6 +33,7 @@ export const useProductEdit = () => {
       status: true,
       has_whatsapp_support: false,
       whatsapp_number: '',
+      order_bumps: [] // Inicializa array de order bumps vazio
     },
   });
 
@@ -58,6 +60,9 @@ export const useProductEdit = () => {
         console.log('Product data loaded:', product);
         setProductId(product.id);
 
+        // Processa order bumps (se existirem)
+        const orderBumps: OrderBump[] = product.order_bumps || [];
+
         // Map database data to the form
         form.reset({
           name: product.name,
@@ -74,6 +79,7 @@ export const useProductEdit = () => {
           status: product.status !== false,
           has_whatsapp_support: product.has_whatsapp_support || false,
           whatsapp_number: product.whatsapp_number || '',
+          order_bumps: orderBumps
         });
 
         setIsLoading(false);
@@ -105,6 +111,7 @@ export const useProductEdit = () => {
         button_color: data.use_global_colors ? null : data.button_color,
         heading_color: data.use_global_colors ? null : data.heading_color, 
         banner_color: data.use_global_colors ? null : data.banner_color,
+        order_bumps: data.order_bumps
       });
       
       const updatedProduct = await updateProduct(productId, {
@@ -122,6 +129,7 @@ export const useProductEdit = () => {
         button_color: data.use_global_colors ? null : data.button_color,
         heading_color: data.use_global_colors ? null : data.heading_color,
         banner_color: data.use_global_colors ? null : data.banner_color,
+        order_bumps: data.order_bumps || []
       });
 
       if (!updatedProduct) {

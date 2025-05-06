@@ -10,6 +10,7 @@ import TypeSection from './components/FormSections/TypeSection';
 import AppearanceSection from './components/FormSections/AppearanceSection';
 import WhatsAppSection from './components/FormSections/WhatsAppSection';
 import StatusSection from './components/FormSections/StatusSection';
+import OrderBumpsSection from './components/FormSections/OrderBumpsSection';
 import FormActions from './components/FormSections/FormActions';
 
 interface ProductFormProps {
@@ -44,7 +45,8 @@ export function ProductForm({
       useGlobalColors: form.getValues('use_global_colors'),
       buttonColor: form.getValues('button_color'),
       headingColor: form.getValues('heading_color'),
-      bannerColor: form.getValues('banner_color')
+      bannerColor: form.getValues('banner_color'),
+      orderBumps: form.getValues('order_bumps')
     });
   }, [form.watch()]);
 
@@ -64,6 +66,7 @@ export function ProductForm({
             <AppearanceSection form={form} />
             <WhatsAppSection form={form} />
             <StatusSection form={form} />
+            <OrderBumpsSection form={form} />
             <FormActions isSubmitting={isSubmitting} />
           </form>
         </Form>

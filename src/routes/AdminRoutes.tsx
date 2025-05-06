@@ -16,6 +16,8 @@ import WebhookSimulator from '@/pages/admin/WebhookSimulator';
 import AdminTools from '@/pages/admin/AdminTools';
 import ApiInformation from '@/pages/admin/ApiInformation';
 import TelegramSettingsPage from '@/pages/admin/TelegramSettingsPage';
+import EditProductPage from '@/pages/admin/products/edit';
+import NewProductPage from '@/pages/admin/products/new';
 
 const AdminRoutes = () => {
   useEffect(() => {
@@ -50,6 +52,23 @@ const AdminRoutes = () => {
         <ProtectedRoute requireAdmin>
           <AdminLayout>
             <ProductsPage />
+          </AdminLayout>
+        </ProtectedRoute>
+      } />
+      
+      {/* Produto novo e edição */}
+      <Route path="/products/new" element={
+        <ProtectedRoute requireAdmin>
+          <AdminLayout>
+            <NewProductPage />
+          </AdminLayout>
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/products/edit/:slug" element={
+        <ProtectedRoute requireAdmin>
+          <AdminLayout>
+            <EditProductPage />
           </AdminLayout>
         </ProtectedRoute>
       } />

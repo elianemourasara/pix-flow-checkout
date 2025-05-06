@@ -21,7 +21,8 @@ export const createProduct = async (productData: any): Promise<any> => {
           use_global_colors: productData.use_global_colors,
           button_color: productData.button_color,
           heading_color: productData.heading_color,
-          banner_color: productData.banner_color
+          banner_color: productData.banner_color,
+          order_bumps: productData.order_bumps || []
         }
       ])
       .select()
@@ -53,7 +54,8 @@ export const updateProduct = async (id: string, productData: any): Promise<any> 
         use_global_colors: productData.use_global_colors,
         button_color: productData.button_color,
         heading_color: productData.heading_color,
-        banner_color: productData.banner_color
+        banner_color: productData.banner_color,
+        order_bumps: productData.order_bumps || []
       })
       .eq('id', id)
       .select()
@@ -166,7 +168,14 @@ export const getAllProducts = async (): Promise<any[]> => {
       status: product.status,
       slug: product.slug,
       image_url: product.image_url || '',
-      banner_image_url: product.banner_image_url || ''
+      banner_image_url: product.banner_image_url || '',
+      has_whatsapp_support: product.has_whatsapp_support,
+      whatsapp_number: product.whatsapp_number,
+      use_global_colors: product.use_global_colors,
+      button_color: product.button_color,
+      heading_color: product.heading_color,
+      banner_color: product.banner_color,
+      order_bumps: product.order_bumps || []
     }));
   } catch (error) {
     console.error('Error fetching products:', error);
@@ -207,7 +216,8 @@ export const getProductById = async (id: string): Promise<Product | null> => {
       banner_color: data.banner_color,
       has_whatsapp_support: data.has_whatsapp_support,
       whatsapp_number: data.whatsapp_number,
-      status: data.status
+      status: data.status,
+      order_bumps: data.order_bumps || []
     };
 
     return product;

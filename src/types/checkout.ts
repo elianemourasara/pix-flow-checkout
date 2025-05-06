@@ -81,6 +81,17 @@ export interface Product {
   status?: boolean;
   has_whatsapp_support?: boolean;
   whatsapp_number?: string;
+  order_bumps?: OrderBump[]; // Adicionando suporte para order bumps
+}
+
+// Adicionando interface para OrderBump
+export interface OrderBump {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  imageUrl?: string;
+  active?: boolean;
 }
 
 // Custom types for checkout customization
