@@ -1,4 +1,3 @@
-
 import React, { useRef, useState } from 'react';
 import { CheckoutCustomization, CustomerData, PaymentMethod, Product, AddressData } from '@/types/checkout';
 import { PersonalInfoSection } from './PersonalInfoSection';
@@ -8,7 +7,8 @@ import { OrderSummary } from './OrderSummary';
 import { AddressForm } from './address/AddressForm';
 import { useShippingMessage } from './address/useShippingMessage';
 import { RandomVisitorsMessage } from './RandomVisitorsMessage';
-import { OrderBump, BumpProduct } from './OrderBump'; // Importado o OrderBump
+import { OrderBump } from './OrderBump'; // Import OrderBump component
+import { BumpProduct } from '@/hooks/useOrderBump'; // Import BumpProduct type directly from the hook
 
 interface CheckoutContentProps {
   product: Product;
