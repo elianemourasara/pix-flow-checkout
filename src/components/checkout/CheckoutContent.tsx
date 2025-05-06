@@ -1,4 +1,3 @@
-
 import React, { useRef, useState } from 'react';
 import { CheckoutCustomization, CustomerData, PaymentMethod, Product, AddressData } from '@/types/checkout';
 import { PersonalInfoSection } from './PersonalInfoSection';

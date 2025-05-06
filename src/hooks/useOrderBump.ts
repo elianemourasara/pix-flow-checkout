@@ -1,21 +1,8 @@
 
 import { useState, useCallback, useEffect } from 'react';
+import { BumpProduct, UseOrderBumpProps, UseOrderBumpReturn } from '@/components/checkout/OrderBump/types';
 
-export interface BumpProduct {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  imageUrl?: string;
-}
-
-interface UseOrderBumpProps {
-  products: BumpProduct[];
-  onChange?: (selectedProducts: BumpProduct[], total: number) => void;
-  onTotalChange?: (total: number) => void;
-}
-
-export const useOrderBump = ({ products, onChange, onTotalChange }: UseOrderBumpProps) => {
+export const useOrderBump = ({ products, onChange }: UseOrderBumpProps): UseOrderBumpReturn => {
   const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
   
   const toggleProduct = useCallback((productId: string) => {
@@ -29,34 +16,23 @@ export const useOrderBump = ({ products, onChange, onTotalChange }: UseOrderBump
     return !!selectedIds[productId];
   }, [selectedIds]);
   
-  const selectedProducts = useCallback(() => {
-    return products.filter(product => selectedIds[product.id]);
-  }, [products, selectedIds]);
+  const selectedProducts = products.filter(product => selectedIds[product.id]);
   
-  const total = useCallback(() => {
-    return products.reduce((sum, product) => {
-      return sum + (selectedIds[product.id] ? product.price : 0);
-    }, 0);
-  }, [products, selectedIds]);
+  const total = products.reduce((sum, product) => {
+    return sum + (selectedIds[product.id] ? product.price : 0);
+  }, 0);
   
   // Call onChange whenever selected products change
   useEffect(() => {
-    const selected = selectedProducts();
-    const currentTotal = total();
-    
     if (onChange) {
-      onChange(selected, currentTotal);
+      onChange(selectedProducts, total);
     }
-    
-    if (onTotalChange) {
-      onTotalChange(currentTotal);
-    }
-  }, [selectedIds, onChange, onTotalChange, selectedProducts, total]);
+  }, [selectedIds, onChange, selectedProducts, total, products]);
   
   return {
-    selectedProducts: selectedProducts(),
+    selectedProducts,
     toggleProduct,
     isSelected,
-    total: total()
+    total
   };
 };
