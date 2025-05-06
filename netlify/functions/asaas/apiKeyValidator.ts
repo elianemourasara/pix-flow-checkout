@@ -13,8 +13,7 @@ export const apiKeyValidator = {
    */
   validateKey: async (apiKey: string, apiBaseUrl: string) => {
     console.log('[apiKeyValidator] BYPASS: Retornando válido sem verificação');
-    console.log('[apiKeyValidator] Começa com $:', apiKey.startsWith('$'));
-    console.log('[apiKeyValidator] Comprimento da chave:', apiKey.length);
+    console.log('[apiKeyValidator] Chave fornecida:', apiKey.substring(0, 5) + '...');
     
     // BYPASS: Sempre retornar true para evitar bloqueios
     return {

@@ -353,6 +353,11 @@ export type Database = {
           product_price: number
           status: string
           updated_at: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
         }
         Insert: {
           asaas_payment_id?: string | null
@@ -369,6 +374,11 @@ export type Database = {
           product_price: number
           status?: string
           updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
         }
         Update: {
           asaas_payment_id?: string | null
@@ -385,6 +395,11 @@ export type Database = {
           product_price?: number
           status?: string
           updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
         }
         Relationships: [
           {
@@ -428,36 +443,36 @@ export type Database = {
       }
       pixel_config: {
         Row: {
-          conversion_label: string | null
           created_at: string
-          facebook_enabled: boolean | null
-          facebook_pixel_id: string | null
-          facebook_token: string | null
-          google_ads_id: string | null
-          google_enabled: boolean | null
+          facebook_pixels: Json | null
+          google_ads_pixels: Json | null
           id: number
+          outbrain_pixel: Json | null
+          taboola_pixel: Json | null
+          tiktok_pixel: Json | null
+          uol_ads_pixel: Json | null
           updated_at: string
         }
         Insert: {
-          conversion_label?: string | null
           created_at?: string
-          facebook_enabled?: boolean | null
-          facebook_pixel_id?: string | null
-          facebook_token?: string | null
-          google_ads_id?: string | null
-          google_enabled?: boolean | null
+          facebook_pixels?: Json | null
+          google_ads_pixels?: Json | null
           id?: number
+          outbrain_pixel?: Json | null
+          taboola_pixel?: Json | null
+          tiktok_pixel?: Json | null
+          uol_ads_pixel?: Json | null
           updated_at?: string
         }
         Update: {
-          conversion_label?: string | null
           created_at?: string
-          facebook_enabled?: boolean | null
-          facebook_pixel_id?: string | null
-          facebook_token?: string | null
-          google_ads_id?: string | null
-          google_enabled?: boolean | null
+          facebook_pixels?: Json | null
+          google_ads_pixels?: Json | null
           id?: number
+          outbrain_pixel?: Json | null
+          taboola_pixel?: Json | null
+          tiktok_pixel?: Json | null
+          uol_ads_pixel?: Json | null
           updated_at?: string
         }
         Relationships: []
@@ -468,6 +483,7 @@ export type Database = {
           banner_image_url: string | null
           button_color: string | null
           created_at: string
+          delivery_url: string | null
           description: string | null
           has_whatsapp_support: boolean | null
           heading_color: string | null
@@ -487,6 +503,7 @@ export type Database = {
           banner_image_url?: string | null
           button_color?: string | null
           created_at?: string
+          delivery_url?: string | null
           description?: string | null
           has_whatsapp_support?: boolean | null
           heading_color?: string | null
@@ -506,6 +523,7 @@ export type Database = {
           banner_image_url?: string | null
           button_color?: string | null
           created_at?: string
+          delivery_url?: string | null
           description?: string | null
           has_whatsapp_support?: boolean | null
           heading_color?: string | null
@@ -606,6 +624,30 @@ export type Database = {
           notify_payments?: boolean
           token?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      users: {
+        Row: {
+          created_at: string | null
+          email: string
+          id: string
+          name: string
+          password: string
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          id?: string
+          name: string
+          password: string
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          id?: string
+          name?: string
+          password?: string
         }
         Relationships: []
       }

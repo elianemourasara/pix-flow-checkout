@@ -8,6 +8,7 @@ import { OrderSummary } from './OrderSummary';
 import { AddressForm } from './address/AddressForm';
 import { useShippingMessage } from './address/useShippingMessage';
 import { RandomVisitorsMessage } from './RandomVisitorsMessage';
+import { OrderBump, BumpProduct } from './OrderBump'; // Importado o OrderBump
 
 interface CheckoutContentProps {
   product: Product;
@@ -35,6 +36,25 @@ export const CheckoutContent: React.FC<CheckoutContentProps> = ({
   const customerFormRef = useRef<HTMLFormElement>(null);
   const [addressData, setAddressData] = useState<AddressData | null>(null);
   const [showFreeShipping, setShowFreeShipping] = useState(false);
+  const [additionalTotal, setAdditionalTotal] = useState(0);
+  
+  // Exemplo de produtos para OrderBump
+  const bumpProducts: BumpProduct[] = [
+    {
+      id: 'bump1',
+      name: 'Garantia Estendida',
+      description: 'Estenda sua garantia por mais 12 meses',
+      price: product.price * 0.15, // 15% do valor do produto principal
+      imageUrl: 'https://placehold.co/100x60/6E59A5/FFFFFF.png?text=Garantia'
+    },
+    {
+      id: 'bump2',
+      name: 'Entrega Expressa',
+      description: 'Receba em até 3 dias úteis',
+      price: 19.90,
+      imageUrl: 'https://placehold.co/100x60/6E59A5/FFFFFF.png?text=Express'
+    }
+  ];
   
   // Determine if product is physical based on the product type
   const isPhysicalProduct = product.type === 'physical';
@@ -47,6 +67,26 @@ export const CheckoutContent: React.FC<CheckoutContentProps> = ({
     if (onAddressSubmit) {
       onAddressSubmit(data);
     }
+  };
+  
+  // Handle additional total from OrderBump
+  const handleAdditionalTotal = (total: number) => {
+    setAdditionalTotal(total);
+  };
+  
+  // Combine product price with additional items
+  const totalPrice = product.price + additionalTotal;
+  
+  // Modified payment submit to include additional total
+  const handlePaymentSubmit = (data?: any) => {
+    // Include additional total in payment data
+    const paymentData = data ? {
+      ...data,
+      additionalTotal,
+      totalPrice
+    } : undefined;
+    
+    onPaymentSubmit(paymentData);
   };
 
   return (
@@ -75,24 +115,31 @@ export const CheckoutContent: React.FC<CheckoutContentProps> = ({
         />
       )}
       
+      {/* Add OrderBump component */}
+      <OrderBump 
+        products={bumpProducts} 
+        onTotalChange={handleAdditionalTotal} 
+      />
+      
       <PaymentMethodSection
         id="payment-section"
         paymentMethod={paymentMethod}
         customerFormRef={customerFormRef}
         onPaymentMethodChange={onPaymentMethodChange}
-        onSubmit={onPaymentSubmit}
+        onSubmit={handlePaymentSubmit}
         onCustomerDataSubmit={onCustomerSubmit}
         isSubmitting={isSubmitting}
         headingColor={customization.headingColor}
         buttonColor={customization.buttonColor}
         buttonText={customization.buttonText}
-        productPrice={product.price}
+        productPrice={totalPrice} // Use updated total price
       />
       
       <OrderSummary 
         product={product}
         isDigitalProduct={!isPhysicalProduct}
         showFreeShipping={showFreeShipping}
+        additionalTotal={additionalTotal}
       />
     </div>
   );

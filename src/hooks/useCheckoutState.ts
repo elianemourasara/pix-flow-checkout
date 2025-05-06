@@ -1,7 +1,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { CustomerData, PaymentMethod, Product, CreditCardData, AddressData } from '@/types/checkout';
+import { CustomerData, PaymentMethod, Product, CreditCardData, AddressData, BumpItem } from '@/types/checkout';
 import { useRedirectConfig } from './checkout/useRedirectConfig';
 import { usePaymentNavigation } from './checkout/usePaymentNavigation';
 import { useOrderHandler } from './checkout/useOrderHandler';
@@ -11,6 +11,8 @@ export const useCheckoutState = (product: Product | undefined) => {
   const [customerData, setCustomerData] = useState<CustomerData | null>(null);
   const [addressData, setAddressData] = useState<AddressData | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('creditCard');
+  const [additionalItems, setAdditionalItems] = useState<BumpItem[]>([]);
+  const [additionalTotal, setAdditionalTotal] = useState(0);
   const lastSubmitTimeRef = useRef<number>(0);
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
@@ -51,7 +53,7 @@ export const useCheckoutState = (product: Product | undefined) => {
     setAddressData(data);
   }, []);
   
-  const handlePaymentSubmit = async (paymentData?: CreditCardData, existingOrderId?: string) => {
+  const handlePaymentSubmit = async (paymentData?: CreditCardData & { additionalTotal?: number; totalPrice?: number }, existingOrderId?: string) => {
     if (!product) {
       console.error('Missing product data');
       toast({
@@ -85,6 +87,16 @@ export const useCheckoutState = (product: Product | undefined) => {
     }
     
     console.log("Processing payment with customer data", { name: customerData.name, email: customerData.email });
+    
+    // Capture additional total from payment data if available
+    if (paymentData?.additionalTotal) {
+      setAdditionalTotal(paymentData.additionalTotal);
+    }
+    
+    // Calculate the final price
+    const finalPrice = paymentData?.totalPrice || product.price;
+    console.log("Order total:", finalPrice, "Original price:", product.price, "Additional:", paymentData?.additionalTotal || 0);
+    
     setIsSubmitting(true);
     
     // Define order variable outside the try block so it's accessible in catch
@@ -92,9 +104,15 @@ export const useCheckoutState = (product: Product | undefined) => {
     let billingData: any = null;
     
     try {
+      // Create a modified product with the updated price for the order creation
+      const modifiedProduct = {
+        ...product,
+        price: finalPrice
+      };
+      
       const result = await handleOrderCreation(
         customerData, 
-        product, 
+        modifiedProduct, 
         paymentMethod, 
         paymentData, 
         existingOrderId,
@@ -110,7 +128,7 @@ export const useCheckoutState = (product: Product | undefined) => {
         billingData, 
         redirectPage, 
         customerData, 
-        product
+        modifiedProduct
       );
     } catch (error) {
       navigateToFailure(error, customerData, currentOrder);
@@ -124,6 +142,7 @@ export const useCheckoutState = (product: Product | undefined) => {
     addressData,
     paymentMethod,
     isSubmitting,
+    additionalTotal,
     handleCustomerSubmit,
     handleAddressSubmit,
     setPaymentMethod,

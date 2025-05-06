@@ -8,13 +8,17 @@ interface OrderSummaryProps {
   product: Product;
   isDigitalProduct?: boolean;
   showFreeShipping?: boolean;
+  additionalTotal?: number;
 }
 
 export const OrderSummary: React.FC<OrderSummaryProps> = ({ 
   product, 
   isDigitalProduct = true,
-  showFreeShipping = false
+  showFreeShipping = false,
+  additionalTotal = 0
 }) => {
+  const totalPrice = product.price + additionalTotal;
+  
   return (
     <section id="order-summary-section" className="mb-8">
       <SectionTitle number={4} title="Resumo do pedido" />
@@ -56,6 +60,14 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
             <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(product.price)}</span>
           </div>
           
+          {/* Display additional total if exists */}
+          {additionalTotal > 0 && (
+            <div className="flex justify-between text-sm">
+              <span>Itens adicionais:</span>
+              <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(additionalTotal)}</span>
+            </div>
+          )}
+          
           {/* More elegant free shipping message for physical products */}
           {!isDigitalProduct && showFreeShipping && (
             <div className="flex justify-between items-center text-sm text-green-700 font-medium bg-green-50 px-2 py-1.5 rounded">
@@ -69,7 +81,7 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
           
           <div className="flex justify-between text-lg font-bold">
             <span>TOTAL:</span>
-            <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(product.price)}</span>
+            <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalPrice)}</span>
           </div>
         </div>
         

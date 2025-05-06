@@ -37,6 +37,14 @@ export interface Order {
   has_whatsapp_support?: boolean;
   whatsapp_number?: string;
   productType?: 'digital' | 'physical';
+  additionalItems?: BumpItem[]; // Add support for order bump items
+}
+
+// Add BumpItem interface
+export interface BumpItem {
+  id: string;
+  name: string;
+  price: number;
 }
 
 export interface OrderTransformed {
