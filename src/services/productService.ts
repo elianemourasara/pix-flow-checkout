@@ -19,8 +19,8 @@ export const getProductBySlug = async (slug: string): Promise<Product | null> =>
       return null;
     }
 
-    // Parse order_bumps from JSONB if exists
-    const orderBumps = data.order_bumps ? data.order_bumps : [];
+    // Parse order_bumps from the metadata field if it exists
+    const orderBumps = data.metadata?.order_bumps || [];
 
     const product: Product = {
       id: data.id,
@@ -51,31 +51,42 @@ export const getProductBySlug = async (slug: string): Promise<Product | null> =>
 
 export const updateProduct = async (id: string, productData: any): Promise<Product | null> => {
   try {
+    // Extract order bumps to store in metadata
+    const orderBumps = productData.order_bumps || [];
+    
+    // Create metadata object with order_bumps
+    const metadata = {
+      order_bumps: orderBumps
+    };
+    
+    // Remove order_bumps from the direct update object
+    const { order_bumps, ...productDataWithoutOrderBumps } = productData;
+    
+    // Add metadata field to the update
+    const updateData = {
+      ...productDataWithoutOrderBumps,
+      metadata
+    };
+    
+    // Log what we're sending to the database
+    console.log("Updating product with data:", updateData);
+    
     const { data, error } = await supabase
       .from('products')
-      .update({
-        name: productData.name,
-        description: productData.description,
-        price: parseFloat(productData.price) || 0,
-        type: productData.type || 'digital',
-        status: productData.status !== false,
-        slug: productData.slug,
-        image_url: productData.image_url || '',
-        banner_image_url: productData.banner_image_url || '',
-        has_whatsapp_support: productData.has_whatsapp_support,
-        whatsapp_number: productData.whatsapp_number,
-        use_global_colors: productData.use_global_colors,
-        button_color: productData.button_color,
-        heading_color: productData.heading_color,
-        banner_color: productData.banner_color,
-        order_bumps: productData.order_bumps || []
-      })
+      .update(updateData)
       .eq('id', id)
       .select()
       .single();
 
     if (error) throw error;
-    return data;
+    
+    // When returning, reattach the order_bumps from metadata
+    const returnProduct = {
+      ...data,
+      order_bumps: data.metadata?.order_bumps || []
+    };
+    
+    return returnProduct;
   } catch (error) {
     console.error("Error updating product:", error);
     throw error;
@@ -99,8 +110,8 @@ export const getProductById = async (id: string): Promise<Product | null> => {
       return null;
     }
 
-    // Parse order_bumps from JSONB if exists
-    const orderBumps = data.order_bumps ? data.order_bumps : [];
+    // Parse order_bumps from metadata if exists
+    const orderBumps = data.metadata?.order_bumps || [];
 
     const product: Product = {
       id: data.id,
