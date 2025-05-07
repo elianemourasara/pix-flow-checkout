@@ -489,6 +489,7 @@ export type Database = {
           heading_color: string | null
           id: string
           image_url: string | null
+          metadata: Json | null
           name: string
           price: number
           slug: string
@@ -509,6 +510,7 @@ export type Database = {
           heading_color?: string | null
           id?: string
           image_url?: string | null
+          metadata?: Json | null
           name: string
           price: number
           slug: string
@@ -529,6 +531,7 @@ export type Database = {
           heading_color?: string | null
           id?: string
           image_url?: string | null
+          metadata?: Json | null
           name?: string
           price?: number
           slug?: string
