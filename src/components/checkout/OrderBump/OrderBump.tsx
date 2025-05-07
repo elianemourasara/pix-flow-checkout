@@ -12,18 +12,21 @@ export const OrderBump: React.FC<OrderBumpProps> = ({ products, onChange }) => {
   });
   
   if (!products || products.length === 0) {
+    console.log("Nenhum produto de OrderBump para exibir");
     return null;
   }
   
+  console.log("Renderizando OrderBump com produtos:", products);
+  
   return (
-    <div className="mt-6 mb-4 space-y-4">
+    <div className="mt-4 mb-4 space-y-4 border border-gray-200 rounded-lg p-4 bg-gradient-to-r from-purple-50 to-slate-50">
       <div className="text-lg font-medium mb-2 flex items-center">
         <span className="mr-2">🔥</span>
         Aproveite e complete seu pedido
       </div>
       
       <div className="space-y-4">
-        {products.slice(0, 2).map((product) => (
+        {products.map((product) => (
           <div 
             key={product.id} 
             className={`border rounded-lg p-4 transition-all duration-200 ${

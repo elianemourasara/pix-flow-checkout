@@ -21,6 +21,9 @@ export const getProductBySlug = async (slug: string): Promise<Product | null> =>
 
     // Parse order_bumps from the metadata field if it exists
     const orderBumps = data.metadata?.order_bumps || [];
+    
+    console.log("Dados do produto recuperados:", data);
+    console.log("Order bumps no metadata:", orderBumps);
 
     const product: Product = {
       id: data.id,
@@ -112,6 +115,9 @@ export const getProductById = async (id: string): Promise<Product | null> => {
 
     // Parse order_bumps from metadata if exists
     const orderBumps = data.metadata?.order_bumps || [];
+    
+    console.log("Dados do produto recuperados por ID:", data);
+    console.log("Order bumps no metadata:", orderBumps);
 
     const product: Product = {
       id: data.id,
@@ -146,11 +152,17 @@ export const getOrderBumpsForProduct = async (productId: string): Promise<any[]>
     const product = await getProductById(productId);
     
     if (!product || !product.order_bumps || product.order_bumps.length === 0) {
+      console.log("Nenhum order bump encontrado para o produto:", productId);
       return [];
     }
     
+    console.log("Order bumps obtidos para o produto:", product.order_bumps);
+    
     // Filter only active order bumps
-    return product.order_bumps.filter(bump => bump.active !== false);
+    const activeBumps = product.order_bumps.filter(bump => bump.active !== false);
+    console.log("Order bumps ativos:", activeBumps);
+    
+    return activeBumps;
   } catch (error) {
     console.error('Error getting order bumps for product:', error);
     return [];

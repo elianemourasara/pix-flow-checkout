@@ -45,6 +45,8 @@ export const CheckoutContent: React.FC<CheckoutContentProps> = ({
   // Carrega os order bumps do produto
   useEffect(() => {
     if (product && product.order_bumps && product.order_bumps.length > 0) {
+      console.log("Order bumps presentes no produto:", product.order_bumps);
+      
       // Mapear order bumps para o formato esperado pelo componente OrderBump
       const activeBumps = product.order_bumps
         .filter(bump => bump.active !== false)
@@ -56,8 +58,10 @@ export const CheckoutContent: React.FC<CheckoutContentProps> = ({
           imageUrl: bump.imageUrl || undefined
         }));
       
+      console.log("Order bumps formatados:", activeBumps);
       setBumpProducts(activeBumps);
     } else {
+      console.log("Nenhum order bump encontrado no produto");
       setBumpProducts([]);
     }
   }, [product]);
@@ -77,6 +81,8 @@ export const CheckoutContent: React.FC<CheckoutContentProps> = ({
   
   // Handle additional total from OrderBump
   const handleAdditionalTotal = (selectedProducts: BumpProduct[], total: number) => {
+    console.log("Order bumps selecionados:", selectedProducts);
+    console.log("Valor adicional:", total);
     setAdditionalTotal(total);
   };
   
@@ -121,12 +127,15 @@ export const CheckoutContent: React.FC<CheckoutContentProps> = ({
         />
       )}
       
-      {/* Add OrderBump component - só exibe se houver products */}
-      {bumpProducts.length > 0 && (
-        <OrderBump 
-          products={bumpProducts} 
-          onChange={handleAdditionalTotal} 
-        />
+      {/* Add OrderBump component - exibe se houver products */}
+      {bumpProducts && bumpProducts.length > 0 && (
+        <div className="my-6">
+          <h3 className="text-lg mb-3 font-medium">Ofertas Especiais:</h3>
+          <OrderBump 
+            products={bumpProducts} 
+            onChange={handleAdditionalTotal} 
+          />
+        </div>
       )}
       
       <PaymentMethodSection

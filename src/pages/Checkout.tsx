@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useCheckoutState } from '@/hooks/useCheckoutState';
@@ -47,28 +48,12 @@ const Checkout = () => {
           throw new Error("Produto não encontrado");
         }
         
-        // Format product data
-        const productData: Product = {
-          id: data.id,
-          name: data.name,
-          slug: data.slug,
-          description: data.description || '',
-          image_url: data.image_url || '',
-          banner_image_url: data.banner_image_url || '',
-          price: data.price || 0,
-          type: data.type || 'digital',
-          isDigital: data.type === 'digital',
-          use_global_colors: data.use_global_colors,
-          button_color: data.button_color,
-          heading_color: data.heading_color,
-          banner_color: data.banner_color,
-          has_whatsapp_support: data.has_whatsapp_support,
-          whatsapp_number: data.whatsapp_number,
-          status: data.status
-        };
+        console.log("Produto completo:", data);
+        console.log("Order bumps:", data.order_bumps);
         
-        setProduct(productData);
-        console.log('Product data loaded:', productData);
+        // Garantir que o produto seja configurado corretamente com order_bumps
+        setProduct(data);
+        console.log('Product data loaded:', data);
         
       } catch (error: any) {
         console.error("Erro ao carregar produto:", error);
@@ -120,8 +105,6 @@ const Checkout = () => {
       }}
     >
       <div className="max-w-2xl mx-auto">
-        {/* Removido o título do produto que estava aqui */}
-        
         <CheckoutContent 
           product={product}
           customerData={customerData}

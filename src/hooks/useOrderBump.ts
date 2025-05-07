@@ -5,7 +5,16 @@ import { BumpProduct, UseOrderBumpProps, UseOrderBumpReturn } from '@/components
 export const useOrderBump = ({ products, onChange }: UseOrderBumpProps): UseOrderBumpReturn => {
   const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
   
+  // Reset selectedIds when products change
+  useEffect(() => {
+    console.log("Products no useOrderBump:", products);
+    if (products && products.length > 0) {
+      setSelectedIds({});
+    }
+  }, [products]);
+  
   const toggleProduct = useCallback((productId: string) => {
+    console.log("Alternando produto:", productId);
     setSelectedIds(prev => ({
       ...prev,
       [productId]: !prev[productId]
@@ -25,6 +34,7 @@ export const useOrderBump = ({ products, onChange }: UseOrderBumpProps): UseOrde
   // Call onChange whenever selected products change
   useEffect(() => {
     if (onChange) {
+      console.log("Chamando onChange com produtos selecionados:", selectedProducts, "e total:", total);
       onChange(selectedProducts, total);
     }
   }, [selectedIds, onChange, selectedProducts, total, products]);
