@@ -1,6 +1,8 @@
 
 import { BumpProduct } from '@/types/checkout';
 
+export type { BumpProduct };  // Re-export BumpProduct from checkout.ts
+
 export interface OrderBumpProps {
   products: BumpProduct[];
   onChange?: (selectedProducts: BumpProduct[], total: number) => void;
