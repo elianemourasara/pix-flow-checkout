@@ -185,3 +185,20 @@ export interface Testimonial {
   comment: string;
   timeAgo?: string;
 }
+
+// Add the missing types
+export interface UTMData {
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
+  utm_term?: string;
+  utm_content?: string;
+}
+
+export interface BumpProduct {
+  id: string;
+  name: string;
+  price: number;
+  description?: string;
+  imageUrl?: string;
+}
