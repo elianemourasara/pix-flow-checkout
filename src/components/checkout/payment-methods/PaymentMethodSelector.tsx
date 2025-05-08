@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { PaymentMethod } from '@/types/checkout';
-import { RadioOption } from './RadioOption';
+import RadioOption from './RadioOption';
 
 interface PaymentMethodSelectorProps {
   selectedMethod: PaymentMethod;

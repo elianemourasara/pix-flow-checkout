@@ -3,7 +3,8 @@ import React from 'react';
 import { Check } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useOrderBump } from '@/hooks/useOrderBump';
-import { BumpProduct, OrderBumpProps } from './OrderBump/types';
+import { OrderBumpProps } from './OrderBump/types';
+import { BumpProduct } from '@/types/checkout';
 
 export const OrderBump: React.FC<OrderBumpProps> = ({ products, onChange }) => {
   const { toggleProduct, isSelected, selectedProducts, total } = useOrderBump({ 

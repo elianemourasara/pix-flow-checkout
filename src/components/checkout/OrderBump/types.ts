@@ -1,11 +1,5 @@
 
-export interface BumpProduct {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  imageUrl?: string;
-}
+import { BumpProduct } from '@/types/checkout';
 
 export interface OrderBumpProps {
   products: BumpProduct[];

@@ -1,4 +1,3 @@
-
 // Define payment statuses
 export type PaymentStatus =
   | "PENDING"
@@ -40,11 +39,13 @@ export interface Order {
   additionalItems?: BumpItem[]; // Add support for order bump items
 }
 
-// Add BumpItem interface
+// Update BumpItem to match our consolidated BumpProduct type
 export interface BumpItem {
   id: string;
   name: string;
   price: number;
+  description: string;
+  imageUrl?: string;
 }
 
 export interface OrderTransformed {
@@ -186,19 +187,20 @@ export interface Testimonial {
   timeAgo?: string;
 }
 
-// Add the missing types
+// Update BumpProduct to ensure consistency
+export interface BumpProduct {
+  id: string;
+  name: string;
+  price: number;
+  description: string;
+  imageUrl?: string;
+}
+
+// Keep the UTMData interface
 export interface UTMData {
   utm_source?: string;
   utm_medium?: string;
   utm_campaign?: string;
   utm_term?: string;
   utm_content?: string;
-}
-
-export interface BumpProduct {
-  id: string;
-  name: string;
-  price: number;
-  description?: string;
-  imageUrl?: string;
 }

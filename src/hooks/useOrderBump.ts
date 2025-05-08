@@ -1,6 +1,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
-import { BumpProduct, UseOrderBumpProps, UseOrderBumpReturn } from '@/components/checkout/OrderBump/types';
+import { BumpProduct } from '@/types/checkout';
+import { UseOrderBumpProps, UseOrderBumpReturn } from '@/components/checkout/OrderBump/types';
 
 export const useOrderBump = ({ products, onChange }: UseOrderBumpProps): UseOrderBumpReturn => {
   const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
