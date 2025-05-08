@@ -1,11 +1,13 @@
-
 import { AsaasCustomerRequest, SupabasePaymentData } from '../types';
 import { createAsaasCustomer, createAsaasPayment, getAsaasPixQrCode } from '../asaas-api';
 import { savePaymentData, updateOrderAsaasPaymentId } from '../supabase-operations';
 import * as https from 'https';
 
+// Import the PushinPay service
+import { criarCobrancaViaPushinPay } from '../pushinpay-api';
+
 /**
- * Função para processar o pagamento com a chave API fornecida
+ * Função para processar o pagamento com o provedor configurado
  */
 export async function processPaymentFlow(
   requestData: AsaasCustomerRequest,
@@ -20,12 +22,12 @@ export async function processPaymentFlow(
   console.log(`[processPaymentFlow] Primeiros caracteres da chave API: ${apiKey.substring(0, 8)}...`);
   console.log(`[processPaymentFlow] Últimos caracteres da chave API: ...${apiKey.substring(apiKey.length - 4)}`);
   
-  // Log detalhado da chave API (formato)
-  console.log(`[ASAAS] Análise da chave API:`);
-  console.log(`[ASAAS] - Comprimento total: ${apiKey.length} caracteres`);
-  console.log(`[ASAAS] - Começa com $: ${apiKey.startsWith('$')}`);
-  console.log(`[ASAAS] - Começa com aact_: ${apiKey.startsWith('aact_')}`);
-  console.log(`[ASAAS] - Começa com $aact_: ${apiKey.startsWith('$aact_')}`);
+  // Check which payment provider to use
+  const paymentProvider = process.env.PAYMENT_PROVIDER || 'asaas';
+  console.log(`[processPaymentFlow] Usando provedor de pagamento: ${paymentProvider}`);
+  
+  // Get UTM data if available
+  const utmData = requestData.utms || {};
   
   try {
     // Get email configuration
@@ -41,53 +43,66 @@ export async function processPaymentFlow(
       requestData.email = emailConfig.temp_email;
     }
     
-    // Validar todos os campos obrigatórios antes de continuar
-    if (!requestData.name || !requestData.cpfCnpj || !requestData.orderId || !requestData.value) {
-      console.error('[processPaymentFlow] ERRO: Dados de cliente insuficientes');
-      console.error('[processPaymentFlow] Dados recebidos:', {
-        name: requestData.name ? 'Presente' : 'Ausente',
-        cpfCnpj: requestData.cpfCnpj ? 'Presente' : 'Ausente',
-        orderId: requestData.orderId ? 'Presente' : 'Ausente',
-        value: requestData.value ? 'Presente' : 'Ausente'
-      });
-      throw new Error('Dados de cliente insuficientes para criação no Asaas. Verifique name, cpfCnpj, orderId e value.');
-    }
-    
-    // Log completo dos dados de request para diagnóstico
-    console.log('[processPaymentFlow] Dados completos da requisição (sanitizados):', {
-      name: requestData.name,
-      cpfCnpjPartial: requestData.cpfCnpj ? `${requestData.cpfCnpj.substring(0, 4)}...` : 'não fornecido',
-      email: requestData.email,
-      phone: requestData.phone,
-      orderId: requestData.orderId,
-      value: requestData.value,
-      description: requestData.description
-    });
-    
-    console.log(`[processPaymentFlow] Chamando API Asaas (${apiUrl}) para criar cliente...`);
-    
-    // Testando conexão com a API antes de prosseguir
-    try {
-      console.log('[ASAAS] Testando conexão com a API antes de prosseguir...');
-      const fetch = require('node-fetch');
-      const testResponse = await fetch(`${apiUrl}/status`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Accept': 'application/json'
-        }
+    // Usar PushinPay caso configurado
+    if (paymentProvider === 'pushinpay') {
+      console.log('[processPaymentFlow] Processando pagamento via PushinPay');
+      
+      // Create PushinPay payment
+      const pushinPayResult = await criarCobrancaViaPushinPay({
+        amount: requestData.value,
+        description: requestData.description || `Pedido #${requestData.orderId}`,
+        externalReference: requestData.orderId,
+        utms: utmData
       });
       
-      console.log(`[ASAAS] Teste de conexão - Status: ${testResponse.status}`);
-      const testBody = await testResponse.text();
-      console.log(`[ASAAS] Teste de conexão - Corpo: ${testBody}`);
+      console.log('[processPaymentFlow] Resultado PushinPay:', pushinPayResult);
       
-      // IMPORTANTE: Não bloquear o fluxo mesmo se o teste falhar
-      console.log('[ASAAS] Continuando processamento independente do resultado do teste');
-    } catch (connError) {
-      console.error('[ASAAS] Erro ao testar conexão:', connError);
-      console.log('[ASAAS] Continuando processamento mesmo com erro no teste');
-    }
+      // Save payment data to Supabase
+      const paymentData = {
+        order_id: requestData.orderId,
+        payment_id: `pushinpay_${pushinPayResult.endToEndId || Date.now()}`,
+        status: pushinPayResult.status || 'PENDING',
+        amount: requestData.value,
+        qr_code: '',
+        qr_code_image: pushinPayResult.qr_code_url,
+        copy_paste_key: '',
+        expiration_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24h expiration
+      };
+      
+      const saveResult = await savePaymentData(supabase, paymentData);
+      console.log('[processPaymentFlow] Dados salvos no Supabase:', saveResult);
+      
+      // Update order with PushinPay data
+      await supabase
+        .from('orders')
+        .update({
+          external_reference: requestData.orderId,
+          gateway: 'pushinpay',
+          payment_url: pushinPayResult.payment_url,
+          qr_code_url: pushinPayResult.qr_code_url
+        })
+        .eq('id', requestData.orderId);
+      
+      console.log('==================== FIM DO PROCESSAMENTO DE PAGAMENTO (SUCESSO) ====================');
+      
+      // Return formatted response data
+      return {
+        payment: { id: `pushinpay_${pushinPayResult.endToEndId || Date.now()}` },
+        pixQrCode: {
+          encodedImage: pushinPayResult.qr_code_url,
+          payload: '',
+          success: true
+        },
+        paymentData: saveResult,
+        qrCodeImage: pushinPayResult.qr_code_url,
+        qrCode: '',
+        copyPasteKey: '',
+        expirationDate: paymentData.expiration_date,
+        paymentId: `pushinpay_${pushinPayResult.endToEndId || Date.now()}`
+      };
+    } else {
+      // Continue with existing Asaas flow
+      console.log(`[processPaymentFlow] Chamando API Asaas (${apiUrl}) para criar cliente...`);
     
     try {
       // 1. Create customer in Asaas
@@ -157,6 +172,7 @@ export async function processPaymentFlow(
       
       console.log('==================== FIM DO PROCESSAMENTO DE PAGAMENTO (ERRO) ====================');
       throw error;
+    }
     }
   } catch (error) {
     console.error('[processPaymentFlow] Erro no processamento do pagamento:', error);

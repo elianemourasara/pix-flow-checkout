@@ -17,7 +17,10 @@ const corsHeaders = {
 const handler: Handler = async (event: HandlerEvent) => {
   console.log('[create-asaas-customer] -------- Iniciando requisição --------');
   console.log(`[create-asaas-customer] Método: ${event.httpMethod}`);
-  console.log('[create-asaas-customer] MODO FORÇADO: PRODUÇÃO - Ignorando variável USE_ASAAS_PRODUCTION');
+  
+  // Check for payment provider configuration
+  const paymentProvider = process.env.PAYMENT_PROVIDER || 'asaas';
+  console.log(`[create-asaas-customer] Payment provider: ${paymentProvider}`);
 
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: corsHeaders };
@@ -39,7 +42,8 @@ const handler: Handler = async (event: HandlerEvent) => {
       email: requestData.email,
       phone: requestData.phone,
       orderId: requestData.orderId,
-      value: requestData.value
+      value: requestData.value,
+      utms: requestData.utms
     });
 
     const validationError = validateAsaasCustomerRequest(requestData);
@@ -52,29 +56,36 @@ const handler: Handler = async (event: HandlerEvent) => {
       };
     }
 
-    // FORÇAR MODO PRODUÇÃO - ignorar variável de ambiente
-    const isSandbox = false;
-    console.log(`[create-asaas-customer] Modo de operação FORÇADO: PRODUÇÃO`);
+    // Check if we should use PushinPay
+    if (paymentProvider === 'pushinpay') {
+      console.log('[create-asaas-customer] Using PushinPay as payment provider');
+      
+      // Store UTM parameters in orders table
+      if (requestData.utms) {
+        await supabase
+          .from('orders')
+          .update({
+            utm_source: requestData.utms.utm_source || null,
+            utm_medium: requestData.utms.utm_medium || null,
+            utm_campaign: requestData.utms.utm_campaign || null,
+            utm_term: requestData.utms.utm_term || null,
+            utm_content: requestData.utms.utm_content || null
+          })
+          .eq('id', requestData.orderId);
+          
+        console.log('[create-asaas-customer] UTM parameters stored in database');
+      }
+    }
+    
+    // Get API configuration
+    const isSandbox = process.env.USE_ASAAS_PRODUCTION !== 'true';
+    console.log(`[create-asaas-customer] Modo de operação: ${isSandbox ? 'SANDBOX' : 'PRODUÇÃO'}`);
     
     const apiBaseUrl = getAsaasApiBaseUrl(isSandbox);
     console.log(`[create-asaas-customer] API Base URL: ${apiBaseUrl}`);
 
     const apiKey = await getAsaasApiKey(isSandbox);
     
-    // LOGS AVANÇADOS PARA DIAGNÓSTICO
-    console.log("[ASAAS-DIAGNÓSTICO] === INFORMAÇÕES DA CHAVE API ===");
-    console.log("[ASAAS-DIAGNÓSTICO] Tipo:", typeof apiKey);
-    console.log("[ASAAS-DIAGNÓSTICO] Tamanho:", apiKey ? apiKey.length : 'CHAVE NÃO ENCONTRADA');
-    
-    if (apiKey) {
-      console.log("[ASAAS-DIAGNÓSTICO] Primeiros caracteres:", apiKey.slice(0, 10));
-      console.log("[ASAAS-DIAGNÓSTICO] Últimos caracteres:", apiKey.slice(-6));
-      console.log("[ASAAS-DIAGNÓSTICO] Formato da chave:");
-      console.log("[ASAAS-DIAGNÓSTICO] - Começa com $?", apiKey.startsWith('$'));
-      console.log("[ASAAS-DIAGNÓSTICO] - Começa com aact_?", apiKey.startsWith('aact_'));
-      console.log("[ASAAS-DIAGNÓSTICO] - Começa com $aact_?", apiKey.startsWith('$aact_'));
-    }
-
     if (!apiKey) {
       console.error(`[create-asaas-customer] ERRO: Nenhuma chave API configurada`);
       return {
@@ -83,11 +94,6 @@ const handler: Handler = async (event: HandlerEvent) => {
         body: JSON.stringify({ error: 'API key not configured' }),
       };
     }
-    
-    // IMPORTANTE: NÃO modificar a chave de forma alguma
-    console.log("[DEBUG] Chave original mantida, tamanho:", apiKey.length);
-    console.log("[DEBUG] Começa com $:", apiKey.startsWith('$'));
-    console.log("[DEBUG] Começa com $aact_:", apiKey.startsWith('$aact_'));
     
     const result = await processPaymentFlow(requestData, apiKey, supabase, apiBaseUrl);
 

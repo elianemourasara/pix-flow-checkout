@@ -346,11 +346,16 @@ export type Database = {
           customer_id: string
           customer_name: string
           customer_phone: string
+          end_to_end_id: string | null
+          external_reference: string | null
+          gateway: string | null
           id: string
           payment_method: string
+          payment_url: string | null
           product_id: string | null
           product_name: string
           product_price: number
+          qr_code_url: string | null
           status: string
           updated_at: string
           utm_campaign: string | null
@@ -367,11 +372,16 @@ export type Database = {
           customer_id: string
           customer_name: string
           customer_phone: string
+          end_to_end_id?: string | null
+          external_reference?: string | null
+          gateway?: string | null
           id?: string
           payment_method: string
+          payment_url?: string | null
           product_id?: string | null
           product_name: string
           product_price: number
+          qr_code_url?: string | null
           status?: string
           updated_at?: string
           utm_campaign?: string | null
@@ -388,11 +398,16 @@ export type Database = {
           customer_id?: string
           customer_name?: string
           customer_phone?: string
+          end_to_end_id?: string | null
+          external_reference?: string | null
+          gateway?: string | null
           id?: string
           payment_method?: string
+          payment_url?: string | null
           product_id?: string | null
           product_name?: string
           product_price?: number
+          qr_code_url?: string | null
           status?: string
           updated_at?: string
           utm_campaign?: string | null
@@ -629,6 +644,42 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      user_courses: {
+        Row: {
+          course_id: string | null
+          created_at: string | null
+          id: string
+          user_id: string | null
+        }
+        Insert: {
+          course_id?: string | null
+          created_at?: string | null
+          id?: string
+          user_id?: string | null
+        }
+        Update: {
+          course_id?: string | null
+          created_at?: string | null
+          id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_courses_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_courses_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       users: {
         Row: {

@@ -1,21 +1,17 @@
 
-import React from 'react';
-import { SectionTitle } from '../SectionTitle';
-import { CreditCard } from 'lucide-react';
+import React, { useRef, useEffect } from 'react';
 import { PaymentMethod } from '@/types/checkout';
-import { CustomerData } from '@/types/checkout';
-import { useCustomerDataExtractor } from '@/hooks/useCustomerDataExtractor';
-import { PaymentMethodHeader } from './PaymentMethodHeader';
-import { PaymentMethodContent } from './PaymentMethodContent';
-import { PaymentProcessor } from './PaymentProcessor';
+import { PaymentMethodSelector } from './PaymentMethodSelector';
+import { PaymentMethodForms } from './PaymentMethodForms';
+import { getStoredUtmParams } from '@/hooks/useUtmParams';
 
 interface PaymentMethodSectionProps {
-  id: string;
+  id?: string;
   paymentMethod: PaymentMethod;
   customerFormRef: React.RefObject<HTMLFormElement>;
   onPaymentMethodChange: (method: PaymentMethod) => void;
   onSubmit: (data?: any) => void;
-  onCustomerDataSubmit: (data: CustomerData) => void;
+  onCustomerDataSubmit: (customerData: any) => void;
   isSubmitting: boolean;
   headingColor: string;
   buttonColor: string;
@@ -36,43 +32,45 @@ export const PaymentMethodSection: React.FC<PaymentMethodSectionProps> = ({
   buttonText,
   productPrice = 0
 }) => {
-  const { customerData, hasValidCustomerData } = useCustomerDataExtractor(
-    customerFormRef, 
-    onCustomerDataSubmit
-  );
-
+  // Get stored UTM parameters
+  const utmParamsRef = useRef(getStoredUtmParams());
+  
+  // Submit handler with UTM parameters
+  const handleSubmit = (data?: any) => {
+    // Add UTM parameters to the payment data
+    const paymentDataWithUtm = data ? {
+      ...data,
+      utms: utmParamsRef.current
+    } : { utms: utmParamsRef.current };
+    
+    onSubmit(paymentDataWithUtm);
+  };
+  
   return (
-    <section id={id} className="mb-4 bg-white rounded-lg border border-[#E0E0E0] p-6">
-      <SectionTitle 
-        title="Pagamento" 
-        showNumberBadge={false} 
-        icon={<CreditCard className="text-gray-700" size={20} />} 
+    <div id={id} className="bg-white rounded-lg p-5 shadow-sm border border-gray-100">
+      <h2 
+        className="text-xl font-semibold mb-4" 
+        style={{ color: headingColor }}
+      >
+        Forma de pagamento
+      </h2>
+      
+      <PaymentMethodSelector
+        selectedMethod={paymentMethod}
+        onSelect={onPaymentMethodChange}
       />
       
-      <div className="mt-4">
-        <PaymentMethodHeader paymentMethod={paymentMethod} />
-        
-        <PaymentProcessor
+      <div className="mt-5">
+        <PaymentMethodForms 
           paymentMethod={paymentMethod}
-          hasValidCustomerData={hasValidCustomerData}
-          onSubmit={onSubmit}
-        >
-          {({ handleSubmit, isProcessing, paymentSuccess, paymentError }) => (
-            <PaymentMethodContent
-              paymentMethod={paymentMethod}
-              onPaymentMethodChange={onPaymentMethodChange}
-              onSubmit={handleSubmit}
-              isSubmitting={isSubmitting || isProcessing}
-              buttonColor={buttonColor}
-              buttonText={buttonText}
-              productPrice={productPrice}
-              paymentSuccess={paymentSuccess}
-              paymentError={paymentError}
-              hasValidCustomerData={hasValidCustomerData}
-            />
-          )}
-        </PaymentProcessor>
+          onSubmit={handleSubmit}
+          isLoading={isSubmitting}
+          buttonColor={buttonColor}
+          buttonText={buttonText}
+          productPrice={productPrice}
+          hasValidCustomerData={!!customerFormRef.current}
+        />
       </div>
-    </section>
+    </div>
   );
 };

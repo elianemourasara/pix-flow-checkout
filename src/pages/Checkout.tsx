@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { getProductBySlug } from '@/services/productService';
 import { Product } from '@/types/checkout';
 import CheckoutContainer from '@/components/checkout/CheckoutContainer';
+import { useUtmParams } from '@/hooks/useUtmParams';
 
 const Checkout = () => {
   const { productSlug } = useParams<{ productSlug: string }>();
@@ -17,6 +18,9 @@ const Checkout = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+  
+  // Capture UTM parameters
+  const utmParams = useUtmParams();
   
   const customization = useCheckoutCustomization(product || undefined);
   const {
@@ -50,6 +54,7 @@ const Checkout = () => {
         
         console.log("Produto completo:", data);
         console.log("Order bumps:", data.order_bumps);
+        console.log("UTM Params captured:", utmParams);
         
         // Garantir que o produto seja configurado corretamente com order_bumps
         setProduct(data);
@@ -69,7 +74,7 @@ const Checkout = () => {
     };
     
     fetchProduct();
-  }, [productSlug, toast]);
+  }, [productSlug, toast, utmParams]);
   
   // If loading or no product found
   if (loading) {
@@ -121,6 +126,7 @@ const Checkout = () => {
           onAddressSubmit={handleAddressSubmit}
           onPaymentMethodChange={setPaymentMethod}
           onPaymentSubmit={handlePaymentSubmit}
+          utmParams={utmParams}
         />
       </div>
     </CheckoutContainer>

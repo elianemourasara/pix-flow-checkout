@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { CheckoutCustomization, CustomerData, PaymentMethod, Product, AddressData } from '@/types/checkout';
+import { CheckoutCustomization, CustomerData, PaymentMethod, Product, AddressData, BumpProduct, UTMData } from '@/types/checkout';
 import { PersonalInfoSection } from './PersonalInfoSection';
 import { TestimonialSection } from './TestimonialSection';
 import { PaymentMethodSection } from './payment-methods/PaymentMethodSection';
@@ -9,7 +9,6 @@ import { AddressForm } from './address/AddressForm';
 import { useShippingMessage } from './address/useShippingMessage';
 import { RandomVisitorsMessage } from './RandomVisitorsMessage';
 import { OrderBump } from './OrderBump'; 
-import { BumpProduct } from './OrderBump/types';
 
 interface CheckoutContentProps {
   product: Product;
@@ -21,6 +20,7 @@ interface CheckoutContentProps {
   onPaymentMethodChange: (method: PaymentMethod) => void;
   onPaymentSubmit: (data?: any) => void;
   onAddressSubmit?: (addressData: AddressData) => void;
+  utmParams?: UTMData;
 }
 
 export const CheckoutContent: React.FC<CheckoutContentProps> = ({
@@ -32,7 +32,8 @@ export const CheckoutContent: React.FC<CheckoutContentProps> = ({
   onCustomerSubmit,
   onPaymentMethodChange,
   onPaymentSubmit,
-  onAddressSubmit
+  onAddressSubmit,
+  utmParams
 }) => {
   const customerFormRef = useRef<HTMLFormElement>(null);
   const [addressData, setAddressData] = useState<AddressData | null>(null);
@@ -89,14 +90,15 @@ export const CheckoutContent: React.FC<CheckoutContentProps> = ({
   // Combine product price with additional items
   const totalPrice = product.price + additionalTotal;
   
-  // Modified payment submit to include additional total
+  // Modified payment submit to include additional total and UTM data
   const handlePaymentSubmit = (data?: any) => {
-    // Include additional total in payment data
-    const paymentData = data ? {
-      ...data,
+    // Include additional total and UTM data in payment data
+    const paymentData = {
+      ...(data || {}),
       additionalTotal,
-      totalPrice
-    } : undefined;
+      totalPrice,
+      utms: utmParams
+    };
     
     onPaymentSubmit(paymentData);
   };

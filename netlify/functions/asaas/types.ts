@@ -1,43 +1,3 @@
-
-export interface AsaasCustomerRequest {
-  name: string;
-  cpfCnpj: string;
-  email: string;
-  phone: string;
-  orderId: string;
-  value: number;
-  description?: string;
-}
-
-export interface AsaasCustomerResponse {
-  id: string;
-  name: string;
-  email: string;
-  cpfCnpj: string;
-  phone: string;
-}
-
-export interface AsaasPaymentResponse {
-  id: string;
-  customer: string;
-  value: number;
-  netValue: number;
-  status: string;
-  dueDate: string;
-  paymentDate?: string;
-  description: string;
-  billingType: string;
-  invoiceUrl: string;
-  externalReference: string;
-}
-
-export interface AsaasPixQrCodeResponse {
-  success: boolean;
-  encodedImage: string;
-  payload: string;
-  expirationDate: string;
-}
-
 export interface SupabasePaymentData {
   order_id: string;
   payment_id: string;
@@ -49,16 +9,45 @@ export interface SupabasePaymentData {
   expiration_date: string;
 }
 
-export class AsaasApiError extends Error {
-  constructor(message: string, public details?: any) {
-    super(message);
-    this.name = "AsaasApiError";
-  }
+export interface AsaasCustomer {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  cpfCnpj: string;
 }
 
-export class ConfigurationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ConfigurationError";
-  }
+export interface AsaasPayment {
+  id: string;
+  status: string;
+  value: number;
+  dueDate: string;
+  netValue: number;
+  description: string;
+}
+
+export interface AsaasPixQrCodeResult {
+  encodedImage: string;
+  payload: string;
+  expirationDate: string;
+  success: boolean;
+}
+
+export interface UTMData {
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
+  utm_term?: string;
+  utm_content?: string;
+}
+
+export interface AsaasCustomerRequest {
+  name: string;
+  cpfCnpj: string;
+  email: string;
+  phone: string;
+  orderId: string;
+  value: number;
+  description?: string;
+  utms?: UTMData;
 }
