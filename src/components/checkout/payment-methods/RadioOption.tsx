@@ -1,14 +1,14 @@
 
 import React from 'react';
 import { LucideIcon } from 'lucide-react';
-import { RadioGroupItem } from '@/components/ui/radio-group';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 
 interface RadioOptionProps {
   id: string;
   value: string;
   label: string;
-  description?: string;  // Added description as an optional prop
+  description?: string;
   Icon?: LucideIcon;
   iconColor?: string;
   className?: string;
