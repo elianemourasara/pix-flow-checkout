@@ -1,274 +1,192 @@
 
+// Update the webhook simulator to support the checkoutSession field
 import { Handler } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
 
 // Initialize Supabase client
-const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const supabaseUrl = process.env.SUPABASE_URL as string;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY as string;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// Define the type for the expected payload structure
-interface WebhookPayload {
-  event?: string;
-  payment?: {
-    id: string;
-    status: string;
-  };
-  orderId?: string; // Add orderId for manual card payments
-  [key: string]: any; // Allow other properties
-}
+// Define CORS headers
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept, Authorization',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Content-Type': 'application/json',
+};
 
-// Email para notificações administrativas
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@example.com';
+// Random ID generator for test payments
+const generateTestId = () => `simu_${Math.random().toString(36).substring(2, 15)}`;
 
-// Função para enviar email de notificação
-async function sendAdminNotification(payment: any, orderData: any) {
+// Process a simulated webhook event
+const processWebhookEvent = async (
+  event: string, 
+  paymentId: string, 
+  status: string, 
+  orderId?: string
+) => {
+  console.log(`Processing simulated webhook event: ${event}`);
+  console.log(`Payment ID: ${paymentId}, Status: ${status}, Order ID: ${orderId || 'not provided'}`);
+  
   try {
-    // Verificar se o status é CONFIRMED e se temos um email de administrador
-    if (payment.status !== 'CONFIRMED' || !ADMIN_EMAIL) {
-      return;
+    // First, try to find the corresponding order
+    const { data: orderData, error: orderQueryError } = await supabase
+      .from('orders')
+      .select('*')
+      .eq(paymentId.startsWith('manual_card_payment') || orderId ? 'id' : 'asaas_payment_id', 
+           paymentId.startsWith('manual_card_payment') || orderId ? orderId : paymentId)
+      .maybeSingle();
+      
+    if (orderQueryError) {
+      console.error('Error querying order:', orderQueryError);
     }
-
-    const formattedValue = new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(orderData?.product_price || 0);
-
-    const customerName = orderData?.customer_name || 'Cliente';
-    const productName = orderData?.product_name || 'Produto';
-    const paymentMethod = orderData?.payment_method || 'Desconhecido';
-
-    // Enviar email via Netlify Function
-    try {
-      const emailResponse = await fetch('/.netlify/functions/send-notification', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          to: ADMIN_EMAIL,
-          subject: `🎉 [SIMULADO] Pagamento Confirmado: ${formattedValue}`,
-          message: `
-            <h2>Novo pagamento confirmado (simulado)!</h2>
-            <p><strong>Cliente:</strong> ${customerName}</p>
-            <p><strong>Produto:</strong> ${productName}</p>
-            <p><strong>Valor:</strong> ${formattedValue}</p>
-            <p><strong>Método:</strong> ${paymentMethod}</p>
-            <p><strong>ID Pagamento:</strong> ${payment.id}</p>
-            <p><strong>Data:</strong> ${new Date().toLocaleString('pt-BR')}</p>
-            <p><em>Este é um pagamento simulado através do painel de administração.</em></p>
-          `
-        })
-      });
-
-      if (!emailResponse.ok) {
-        console.error('Erro ao enviar notificação por email (simulação):', await emailResponse.text());
-      } else {
-        console.log('Notificação de pagamento simulado enviada com sucesso para', ADMIN_EMAIL);
-      }
-    } catch (error) {
-      console.error('Erro ao enviar notificação de simulação:', error);
-    }
-  } catch (error) {
-    console.error('Erro ao enviar notificação:', error);
-  }
-}
-
-// Função auxiliar para enviar notificação via Telegram
-async function sendTelegramNotification(message: string, type: string = 'payment') {
-  try {
-    // Verificar se existe uma função para enviar notificações
-    console.log('Tentando enviar notificação via Telegram');
     
-    // Implementação simplificada para evitar dependência externa
-    return true;
+    // Log found or not found order
+    if (orderData) {
+      console.log(`Order found: ${orderData.id}`);
+    } else {
+      console.log('No corresponding order found');
+    }
+    
+    // Update order status
+    let updateResult = null;
+    
+    if (orderId || paymentId.startsWith('manual_card_payment')) {
+      // For manual cards or when orderId is provided directly
+      updateResult = await supabase
+        .from('orders')
+        .update({ 
+          status: status,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', orderId);
+    } else {
+      // For regular Asaas payments
+      updateResult = await supabase
+        .from('orders')
+        .update({ 
+          status: status,
+          updated_at: new Date().toISOString()
+        })
+        .eq('asaas_payment_id', paymentId);
+    }
+    
+    if (updateResult?.error) {
+      console.error('Error updating order status:', updateResult.error);
+    } else {
+      console.log('Order status updated successfully');
+    }
+    
+    // Record webhook log
+    const webhookLog = {
+      event_type: event,
+      payment_id: paymentId,
+      status: status,
+      payload: {
+        event: event,
+        payment: {
+          id: paymentId,
+          status: status,
+          checkoutSession: orderId // Include checkout session ID in the webhook payload
+        }
+      },
+      checkout_session: orderId // Store checkout session ID in the webhook log
+    };
+    
+    const { error: logError } = await supabase
+      .from('asaas_webhook_logs')
+      .insert(webhookLog);
+      
+    if (logError) {
+      console.error('Error saving webhook log:', logError);
+    } else {
+      console.log('Webhook log saved successfully');
+    }
+    
+    return {
+      success: true,
+      message: 'Webhook processed successfully',
+      updatedOrderId: orderData ? orderData.id : null,
+      paymentId,
+      status
+    };
   } catch (error) {
-    console.error('Erro ao enviar notificação Telegram:', error);
-    return false;
+    console.error('Error processing webhook:', error);
+    return {
+      success: false,
+      message: `Error processing webhook: ${error.message || 'Unknown error'}`,
+      error
+    };
   }
-}
+};
 
 export const handler: Handler = async (event) => {
-  // Set CORS headers
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Content-Type': 'application/json'
-  };
-
-  // Handle preflight requests
+  // Handle OPTIONS request for CORS
   if (event.httpMethod === 'OPTIONS') {
     return {
-      statusCode: 200,
-      headers,
+      statusCode: 204,
+      headers: corsHeaders,
       body: ''
     };
   }
-
-  console.log('[AUDIT] Webhook simulator function called');
-
+  
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
-      headers,
-      body: JSON.stringify({ message: 'Method not allowed' })
+      headers: corsHeaders,
+      body: JSON.stringify({ error: 'Method not allowed' })
     };
   }
-
+  
   try {
-    // Parse the request body
-    const payload = JSON.parse(event.body || '{}') as WebhookPayload;
-    console.log('[AUDIT] Webhook simulator payload:', payload);
-
-    if (payload.event && payload.payment) {
-      // Check if this is a manual card payment (special case)
-      const isManualCardPayment = payload.payment.id === 'manual_card_payment' && payload.orderId;
+    const payload = JSON.parse(event.body || '{}');
+    console.log('Received webhook simulation payload:', payload);
+    
+    // Check if this is a manual order-focused webhook (for manual card payments)
+    if (payload.orderId) {
+      console.log(`Processing for specific order ID: ${payload.orderId}`);
+      const result = await processWebhookEvent(
+        payload.event || 'PAYMENT_CONFIRMED',
+        payload.payment?.id || 'manual_card_payment',
+        payload.payment?.status || 'CONFIRMED',
+        payload.orderId
+      );
       
-      // Log payload details for debugging
-      if (isManualCardPayment) {
-        console.log(`[AUDIT] Processing manual card webhook for order ${payload.orderId} with event ${payload.event}`);
-      } else {
-        console.log(`[AUDIT] Processing webhook for payment ${payload.payment.id} with event ${payload.event} and status ${payload.payment.status}`);
-      }
-      
-      const newStatus = payload.payment.status;
-      const updateTimestamp = new Date().toISOString();
-      
-      // 1. Update order status - handle both asaas_payment_id and manual card (orderId)
-      let orderData;
-      let orderError;
-      
-      if (isManualCardPayment && payload.orderId) {
-        // For manual card payments, use the orderId directly
-        const result = await supabase
-          .from('orders')
-          .update({ 
-            status: newStatus,
-            updated_at: updateTimestamp
-          })
-          .eq('id', payload.orderId)
-          .select();
-          
-        orderData = result.data;
-        orderError = result.error;
-      } else {
-        // For regular Asaas payments, use the payment_id
-        const result = await supabase
-          .from('orders')
-          .update({ 
-            status: newStatus,
-            updated_at: updateTimestamp
-          })
-          .eq('asaas_payment_id', payload.payment.id)
-          .select();
-          
-        orderData = result.data;
-        orderError = result.error;
-      }
-
-      if (orderError) {
-        console.error('[AUDIT] Error updating order:', orderError);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ 
-            message: 'Error updating order', 
-            error: orderError.message 
-          })
-        };
-      }
-
-      console.log('[AUDIT] Successfully updated order:', orderData);
-      
-      // 2. Update asaas_payments table if it exists and if this is not a manual card payment
-      if (!isManualCardPayment) {
-        const { error: paymentsError } = await supabase
-          .from('asaas_payments')
-          .update({ 
-            status: newStatus,
-            updated_at: updateTimestamp
-          })
-          .eq('payment_id', payload.payment.id);
-          
-        if (paymentsError) {
-          console.log('[AUDIT] Note: Could not update asaas_payments table:', paymentsError.message);
-        } else {
-          console.log('[AUDIT] Successfully updated asaas_payments table');
-        }
-      }
-
-      // 3. Log the webhook event
-      await supabase
-        .from('asaas_webhook_logs')
-        .insert({
-          event_type: payload.event,
-          payment_id: isManualCardPayment ? `manual_${payload.orderId}` : payload.payment.id,
-          status: newStatus,
-          payload: payload
-        });
-
-      // 4. Send Telegram notification if status is CONFIRMED
-      if (newStatus === 'CONFIRMED' && orderData && orderData.length > 0) {
-        await sendAdminNotification(payload.payment, orderData[0]);
-        
-        // Send Telegram notification with payment type
-        try {
-          const order = orderData[0];
-          const formattedValue = new Intl.NumberFormat('pt-BR', {
-            style: 'currency',
-            currency: 'BRL'
-          }).format(order?.product_price || 0);
-          
-          const paymentMethod = order.payment_method === 'pix' ? 'PIX' : 
-                             order.payment_method === 'creditCard' ? 'Cartão de Crédito' : 
-                             order.payment_method;
-          
-          const message = `✅ <b>Pagamento ${paymentMethod} Confirmado!</b>
-         
-📋 <b>Pedido:</b> ${order.id}
-👤 <b>Cliente:</b> ${order.customer_name}
-📱 <b>Telefone:</b> ${order.customer_phone || 'Não informado'}
-📧 <b>Email:</b> ${order.customer_email || 'Não informado'}
-💰 <b>Valor:</b> ${formattedValue}
-🛒 <b>Produto:</b> ${order.product_name}
-
-⏰ <b>Data:</b> ${new Date().toLocaleString('pt-BR')}`;
-          
-          await sendTelegramNotification(message, 'payment');
-          console.log('[AUDIT] Telegram notification sent for webhook event');
-        } catch (notificationError) {
-          console.error('[AUDIT] Error sending Telegram notification:', notificationError);
-        }
-      }
-
       return {
         statusCode: 200,
-        headers,
-        body: JSON.stringify({ 
-          message: 'Webhook processed successfully',
-          updatedOrder: orderData,
-          timestamp: updateTimestamp,
-          isManualCard: isManualCardPayment,
-          event: payload.event
-        })
+        headers: corsHeaders,
+        body: JSON.stringify(result)
+      };
+    }
+    // Regular Asaas-style webhook
+    else if (payload.event && payload.payment && payload.payment.id) {
+      console.log('Processing Asaas-style webhook event');
+      const result = await processWebhookEvent(
+        payload.event,
+        payload.payment.id,
+        payload.payment.status || 'CONFIRMED',
+        payload.payment.checkoutSession // Pass through checkout session if provided
+      );
+      
+      return {
+        statusCode: 200,
+        headers: corsHeaders,
+        body: JSON.stringify(result)
       };
     } else {
       return {
         statusCode: 400,
-        headers,
-        body: JSON.stringify({ message: 'Invalid webhook payload' })
+        headers: corsHeaders,
+        body: JSON.stringify({ error: 'Invalid webhook payload' })
       };
     }
   } catch (error) {
-    console.error('[AUDIT] Error processing webhook:', error);
+    console.error('Error processing webhook simulation:', error);
     return {
       statusCode: 500,
-      headers,
-      body: JSON.stringify({ 
-        message: 'Error processing webhook', 
-        error: error instanceof Error ? error.message : 'Unknown error' 
-      })
+      headers: corsHeaders,
+      body: JSON.stringify({ error: 'Server error', message: error.message })
     };
   }
 };

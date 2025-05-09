@@ -7,12 +7,13 @@ export async function createAsaasPayment(
   description: string,
   externalReference: string,
   apiKey: string,
-  apiUrl: string = 'https://sandbox.asaas.com/api/v3'
+  apiUrl: string = 'https://sandbox.asaas.com/api/v3',
+  checkoutSession?: string // Add checkout session parameter
 ): Promise<AsaasPaymentResponse> {
   const today = new Date();
   const dueDate = today.toISOString().split('T')[0];
 
-  const paymentData = {
+  const paymentData: any = {
     customer: customerId,
     billingType: 'PIX',
     value: value,
@@ -22,6 +23,12 @@ export async function createAsaasPayment(
     postalService: false
   };
 
+  // Add checkout session if provided
+  if (checkoutSession) {
+    paymentData.checkoutSession = checkoutSession;
+    console.log(`[createAsaasPayment] Including checkoutSession: ${checkoutSession}`);
+  }
+
   try {
     const endpoint = `${apiUrl}/payments`;
     console.log(`[createAsaasPayment] Enviando requisição para ${endpoint}`);
@@ -30,7 +37,8 @@ export async function createAsaasPayment(
       customer_id: customerId,
       value: value,
       description: description,
-      externalReference: externalReference
+      externalReference: externalReference,
+      checkoutSession: checkoutSession || 'não fornecido'
     });
     
     // Novo log conforme solicitado

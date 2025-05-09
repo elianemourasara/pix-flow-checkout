@@ -18,6 +18,7 @@ interface AsaasWebhookPayload {
     invoiceUrl?: string;
     billingType: string;
     externalReference?: string;
+    checkoutSession?: string; // Add checkoutSession field
   };
 }
 
@@ -40,6 +41,7 @@ async function sendAdminNotification(payload: AsaasWebhookPayload, orderDetails:
     const customerName = orderDetails?.customer_name || 'Cliente';
     const productName = orderDetails?.product_name || 'Produto';
     const paymentMethod = orderDetails?.payment_method || 'Desconhecido';
+    const checkoutSession = payload.payment.checkoutSession || orderDetails?.asaas_checkout_session || 'Não disponível';
 
     // Enviar email via Netlify Function
     const emailResponse = await fetch('/.netlify/functions/send-notification', {
@@ -57,6 +59,7 @@ async function sendAdminNotification(payload: AsaasWebhookPayload, orderDetails:
           <p><strong>Valor:</strong> ${formattedValue}</p>
           <p><strong>Método:</strong> ${paymentMethod}</p>
           <p><strong>ID Asaas:</strong> ${payload.payment.id}</p>
+          <p><strong>Checkout Session:</strong> ${checkoutSession}</p>
           <p><strong>Data:</strong> ${new Date().toLocaleString('pt-BR')}</p>
         `
       })
@@ -91,6 +94,14 @@ export const handler: Handler = async (event) => {
 
     // Verificar se o evento é relacionado a pagamento
     if (payload.event && payload.payment) {
+      // Use checkout session if available, otherwise fall back to external reference
+      const orderId = payload.payment.checkoutSession || payload.payment.externalReference;
+      
+      // Log if checkout session was used
+      if (payload.payment.checkoutSession) {
+        console.log('Checkout session detected in webhook:', payload.payment.checkoutSession);
+      }
+      
       // Buscar detalhes do pedido para a notificação
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
@@ -103,12 +114,19 @@ export const handler: Handler = async (event) => {
       }
 
       // Atualizar o status do pedido no Supabase
+      const updateData = {
+        status: payload.payment.status,
+        updated_at: new Date().toISOString()
+      };
+      
+      // Also store checkout session if available
+      if (payload.payment.checkoutSession) {
+        updateData['asaas_checkout_session'] = payload.payment.checkoutSession;
+      }
+      
       const { error } = await supabase
         .from('orders')
-        .update({ 
-          status: payload.payment.status,
-          updated_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('asaas_payment_id', payload.payment.id);
 
       if (error) {
@@ -126,7 +144,8 @@ export const handler: Handler = async (event) => {
           event_type: payload.event,
           payment_id: payload.payment.id,
           status: payload.payment.status,
-          payload: payload
+          payload: payload,
+          checkout_session: payload.payment.checkoutSession
         });
 
       // Enviar notificação para o administrador se o status for CONFIRMED
@@ -140,6 +159,7 @@ export const handler: Handler = async (event) => {
         }).format(payload.payment.value);
         
         const customerName = orderData?.customer_name || 'Cliente';
+        const checkoutSession = payload.payment.checkoutSession || 'N/A';
         
         await sendTelegramNotification(
           `✅ <b>Pagamento Confirmado!</b>
@@ -147,7 +167,8 @@ export const handler: Handler = async (event) => {
 📋 <b>Pedido:</b> ${orderData.id}
 👤 <b>Cliente:</b> ${customerName}
 💰 <b>Valor:</b> ${formattedValue}
-🛒 <b>Produto:</b> ${orderData.product_name}`
+🛒 <b>Produto:</b> ${orderData.product_name}
+🔄 <b>Checkout Session:</b> ${checkoutSession}`
         );
       }
     }

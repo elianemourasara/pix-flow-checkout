@@ -199,13 +199,15 @@ export async function processPaymentFlow(
       const description = requestData.description || `Pedido #${requestData.orderId}`;
       
       console.log('[processPaymentFlow] Tentando criar pagamento no Asaas...');
+      // Pass the orderId as the checkoutSession parameter for better tracking
       const payment = await createAsaasPayment(
         customer.id, 
         requestData.value, 
         description, 
         requestData.orderId,
         apiKey,
-        apiUrl
+        apiUrl,
+        requestData.orderId // Add the orderId as the checkoutSession parameter
       );
       console.log('[processPaymentFlow] Pagamento criado no Asaas:', payment);
       
@@ -227,7 +229,8 @@ export async function processPaymentFlow(
         qr_code: pixQrCode.payload,
         qr_code_image: pixQrCode.encodedImage,
         copy_paste_key: pixQrCode.payload,
-        expiration_date: pixQrCode.expirationDate
+        expiration_date: pixQrCode.expirationDate,
+        checkout_session: requestData.orderId // Add the checkout session ID
       };
       
       const saveResult = await savePaymentData(supabase, paymentData);
@@ -247,7 +250,8 @@ export async function processPaymentFlow(
         qrCodeImage: pixQrCode.encodedImage,
         qrCode: pixQrCode.payload,
         copyPasteKey: pixQrCode.payload,
-        expirationDate: pixQrCode.expirationDate
+        expirationDate: pixQrCode.expirationDate,
+        checkoutSession: requestData.orderId // Include checkout session in response
       };
     } catch (error) {
       // Capturar e registrar erros específicos
