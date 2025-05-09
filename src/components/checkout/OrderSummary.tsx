@@ -26,7 +26,11 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
   
   return (
     <section id="order-summary-section" className="mb-5">
-      <SectionTitle number={4} title="Resumo do pedido" />
+      <SectionTitle 
+        number={3} 
+        title="Resumo do pedido" 
+        numberBadgeColor="#16a34a"
+      />
       
       <div className="bg-white border border-[#E4E4E7] rounded-lg p-6 shadow-[0_0_0_1px_rgba(0,0,0,0.02)] text-[#111]">
         <div className="flex items-center mb-4">
