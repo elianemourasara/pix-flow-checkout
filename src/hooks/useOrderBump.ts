@@ -28,7 +28,7 @@ export const useOrderBump = ({ products, onChange }: UseOrderBumpProps): UseOrde
   
   const selectedProducts = products.filter(product => selectedIds[product.id]);
   
-  const total = products.reduce((sum, product) => {
+  const total = products.reduce((sum: number, product: BumpProduct) => {
     return sum + (selectedIds[product.id] ? product.price : 0);
   }, 0);
   

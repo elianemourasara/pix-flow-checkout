@@ -59,10 +59,20 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
           </div>
         </div>
         
-        {/* OrderBump component - position before price summary */}
+        {/* More elegant free shipping message for physical products */}
+        {!isDigitalProduct && showFreeShipping && (
+          <div className="flex justify-between items-center text-sm text-green-700 font-medium bg-green-50 px-2 py-1.5 rounded mt-3 mb-3">
+            <span className="flex items-center">
+              <Package className="h-5 w-5 mr-2 text-green-600" />
+              Entrega Grátis para este Endereço
+            </span>
+            <span className="text-green-600">Grátis</span>
+          </div>
+        )}
+        
+        {/* OrderBump component - position at the end before totals */}
         {orderBumpProducts && orderBumpProducts.length > 0 && onOrderBumpChange && (
-          <div className="mt-4 mb-2">
-            <h3 className="text-base mb-2 font-medium">Ofertas Especiais:</h3>
+          <div className="mt-4 mb-4">
             <OrderBump 
               products={orderBumpProducts} 
               onChange={onOrderBumpChange}
@@ -81,17 +91,6 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
             <div className="flex justify-between text-sm">
               <span>Itens adicionais:</span>
               <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(additionalTotal)}</span>
-            </div>
-          )}
-          
-          {/* More elegant free shipping message for physical products */}
-          {!isDigitalProduct && showFreeShipping && (
-            <div className="flex justify-between items-center text-sm text-green-700 font-medium bg-green-50 px-2 py-1.5 rounded">
-              <span className="flex items-center">
-                <Package className="h-5 w-5 mr-2 text-green-600" />
-                Entrega Grátis para este Endereço
-              </span>
-              <span className="text-green-600">Grátis</span>
             </div>
           )}
           
