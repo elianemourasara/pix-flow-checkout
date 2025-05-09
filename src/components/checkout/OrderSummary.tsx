@@ -25,10 +25,10 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
   const totalPrice = product.price + additionalTotal;
   
   return (
-    <section id="order-summary-section" className="mb-8">
+    <section id="order-summary-section" className="mb-5">
       <SectionTitle number={4} title="Resumo do pedido" />
       
-      <div className="border border-[#E0E0E0] rounded-lg p-4 bg-white">
+      <div className="bg-white border border-[#E4E4E7] rounded-lg p-6 shadow-[0_0_0_1px_rgba(0,0,0,0.02)] text-[#111]">
         <div className="flex items-center mb-4">
           <ShoppingBag className="mr-2 text-gray-600" size={20} />
           <h3 className="font-bold text-sm">Sua Compra</h3>

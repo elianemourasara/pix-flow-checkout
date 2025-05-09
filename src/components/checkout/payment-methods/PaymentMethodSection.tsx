@@ -47,7 +47,7 @@ export const PaymentMethodSection: React.FC<PaymentMethodSectionProps> = ({
   };
   
   return (
-    <div id={id} className="bg-white rounded-lg p-5 shadow-sm border border-gray-100">
+    <div id={id} className="bg-white border border-[#E4E4E7] rounded-lg p-6 shadow-[0_0_0_1px_rgba(0,0,0,0.02)] mb-5 text-[#111]">
       <h2 
         className="text-xl font-semibold mb-4" 
         style={{ color: headingColor }}

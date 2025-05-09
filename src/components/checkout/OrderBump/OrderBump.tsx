@@ -17,7 +17,7 @@ export const OrderBump: React.FC<OrderBumpProps> = ({ products, onChange }) => {
   }
   
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 bg-white rounded-lg">
       {products.map((product) => (
         <div 
           key={product.id} 
