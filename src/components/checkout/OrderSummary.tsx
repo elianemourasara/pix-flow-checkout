@@ -1,21 +1,26 @@
 
 import React from 'react';
-import { Product } from '@/types/checkout';
+import { Product, BumpProduct } from '@/types/checkout';
 import { Shield, Truck, Package, ShoppingBag } from 'lucide-react';
 import { SectionTitle } from './SectionTitle';
+import { OrderBump } from './OrderBump';
 
 interface OrderSummaryProps {
   product: Product;
   isDigitalProduct?: boolean;
   showFreeShipping?: boolean;
   additionalTotal?: number;
+  orderBumpProducts?: BumpProduct[];
+  onOrderBumpChange?: (selectedProducts: BumpProduct[], total: number) => void;
 }
 
 export const OrderSummary: React.FC<OrderSummaryProps> = ({ 
   product, 
   isDigitalProduct = true,
   showFreeShipping = false,
-  additionalTotal = 0
+  additionalTotal = 0,
+  orderBumpProducts = [],
+  onOrderBumpChange
 }) => {
   const totalPrice = product.price + additionalTotal;
   
@@ -53,6 +58,17 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(product.price)}
           </div>
         </div>
+        
+        {/* OrderBump component - position before price summary */}
+        {orderBumpProducts && orderBumpProducts.length > 0 && onOrderBumpChange && (
+          <div className="mt-4 mb-2">
+            <h3 className="text-base mb-2 font-medium">Ofertas Especiais:</h3>
+            <OrderBump 
+              products={orderBumpProducts} 
+              onChange={onOrderBumpChange}
+            />
+          </div>
+        )}
         
         <div className="pt-3 space-y-2">
           <div className="flex justify-between text-sm">

@@ -8,7 +8,6 @@ import { OrderSummary } from './OrderSummary';
 import { AddressForm } from './address/AddressForm';
 import { useShippingMessage } from './address/useShippingMessage';
 import { RandomVisitorsMessage } from './RandomVisitorsMessage';
-import { OrderBump } from './OrderBump'; 
 
 interface CheckoutContentProps {
   product: Product;
@@ -129,17 +128,6 @@ export const CheckoutContent: React.FC<CheckoutContentProps> = ({
         />
       )}
       
-      {/* Add OrderBump component - exibe se houver products */}
-      {bumpProducts && bumpProducts.length > 0 && (
-        <div className="my-6">
-          <h3 className="text-lg mb-3 font-medium">Ofertas Especiais:</h3>
-          <OrderBump 
-            products={bumpProducts} 
-            onChange={handleAdditionalTotal} 
-          />
-        </div>
-      )}
-      
       <PaymentMethodSection
         id="payment-section"
         paymentMethod={paymentMethod}
@@ -159,6 +147,8 @@ export const CheckoutContent: React.FC<CheckoutContentProps> = ({
         isDigitalProduct={!isPhysicalProduct}
         showFreeShipping={showFreeShipping}
         additionalTotal={additionalTotal}
+        orderBumpProducts={bumpProducts}
+        onOrderBumpChange={handleAdditionalTotal}
       />
     </div>
   );

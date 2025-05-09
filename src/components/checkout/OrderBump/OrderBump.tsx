@@ -3,7 +3,7 @@ import React from 'react';
 import { Check } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useOrderBump } from '@/hooks/useOrderBump';
-import { BumpProduct, OrderBumpProps } from './types';
+import { OrderBumpProps } from './types';
 
 export const OrderBump: React.FC<OrderBumpProps> = ({ products, onChange }) => {
   const { toggleProduct, isSelected, selectedProducts, total } = useOrderBump({ 
@@ -16,24 +16,18 @@ export const OrderBump: React.FC<OrderBumpProps> = ({ products, onChange }) => {
     return null;
   }
   
-  console.log("Renderizando OrderBump com produtos:", products);
-  
   return (
-    <div className="mt-4 mb-4 space-y-4 border border-gray-200 rounded-lg p-4 bg-gradient-to-r from-purple-50 to-slate-50">
-      <div className="text-lg font-medium mb-2 flex items-center">
+    <div className="space-y-3 border-0">
+      <div className="flex items-center">
         <span className="mr-2">🔥</span>
-        Aproveite e complete seu pedido
+        <span className="text-sm font-medium">Aproveite e complete seu pedido</span>
       </div>
       
-      <div className="space-y-4">
+      <div className="space-y-3">
         {products.map((product) => (
           <div 
             key={product.id} 
-            className={`border rounded-lg p-4 transition-all duration-200 ${
-              isSelected(product.id) 
-                ? 'border-custom-purple-500 bg-custom-purple-50' 
-                : 'border-gray-200 hover:border-gray-300'
-            }`}
+            className="border rounded-lg p-3 transition-all duration-200 hover:border-gray-300 bg-white"
             onClick={() => toggleProduct(product.id)}
           >
             <div className="flex items-start">
@@ -42,14 +36,14 @@ export const OrderBump: React.FC<OrderBumpProps> = ({ products, onChange }) => {
                 <Checkbox 
                   checked={isSelected(product.id)}
                   onCheckedChange={() => toggleProduct(product.id)}
-                  className="h-5 w-5 data-[state=checked]:bg-custom-purple-500"
+                  className="h-4 w-4 data-[state=checked]:bg-custom-purple-500"
                 />
               </div>
               
               {/* Product content */}
               <div className="flex-grow">
                 <div className="flex justify-between items-start">
-                  <h4 className="font-medium text-sm">{product.name}</h4>
+                  <h4 className="font-medium uppercase text-xs">{product.name}</h4>
                   <div className="font-medium text-sm">
                     {new Intl.NumberFormat('pt-BR', { 
                       style: 'currency', 
@@ -66,7 +60,7 @@ export const OrderBump: React.FC<OrderBumpProps> = ({ products, onChange }) => {
                     <img 
                       src={product.imageUrl} 
                       alt={product.name}
-                      className="h-14 w-auto object-contain rounded"
+                      className="h-12 w-auto object-contain rounded"
                     />
                   </div>
                 )}
@@ -85,7 +79,7 @@ export const OrderBump: React.FC<OrderBumpProps> = ({ products, onChange }) => {
       </div>
       
       {total > 0 && (
-        <div className="text-sm font-medium text-right text-custom-purple-700">
+        <div className="text-xs font-medium text-right text-custom-purple-700">
           Total adicional: {new Intl.NumberFormat('pt-BR', { 
             style: 'currency', 
             currency: 'BRL' 
